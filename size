@@ -9,9 +9,9 @@ def initialize(context):
     set_benchmark('000300.XSHG')
     set_option('use_real_price', True)
     log.set_level('order', 'error')
-    run_weekly(market_open,1, time='open', reference_security='000300.XSHG')
+    run_monthly(market_open,1, time='open', reference_security='000300.XSHG')
     
-# 每周开盘运行一次， 按照上一交易日的因子值进行调仓
+# 每月开盘运行一次， 按照上一交易日的因子值进行调仓
 def market_open(context):
     for stock in context.portfolio.positions.keys():
         order_target(stock,0)
@@ -23,18 +23,17 @@ def market_open(context):
     factor_data = calc_factors(stock_list, factors=[SIZE()], start_date=date, end_date=date, 
                                 use_real_price=True, skip_paused=True)['size'].iloc[-1]
     list(factor_data).sort() #根据因子值升序排列
-    #print(factor_data)
     
     buy_list = factor_data[0:29].index.tolist() #买入因子值最小的30（10%）只股票
     cash = context.portfolio.total_value/30
     for stock in buy_list:
         order_target_value(stock,cash)
-        #order_target(stock,-100)
+        
 class SIZE(Factor):
     # 设置因子名称
     name = 'size'
     # 设置获取数据的时间窗口长度
-    max_window = 1
+    max_window = 30
     # 设置依赖的数据
     dependencies = ['market_cap']
 
@@ -42,7 +41,5 @@ class SIZE(Factor):
     def calc(self, data):
         # 个股最新一季度度的净利润数据
         market_cap = data['market_cap']
-        # 个股最新一季度的上一季度的净利润数据
-        #roe = net_profit/net_profit_last
         # 返回一个 series
         return market_cap.mean()
