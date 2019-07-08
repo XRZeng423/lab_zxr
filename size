@@ -1,45 +1,36 @@
 # 导入函数库
 import jqdata
-from jqfactor import Factor, calc_factors
 import datetime
 import numpy as np 
+from jqfactor import get_factor_values
 
 # 策略初始化
 def initialize(context):
-    set_benchmark('000300.XSHG')
+    set_benchmark('000906.XSHG')
     set_option('use_real_price', True)
     log.set_level('order', 'error')
-    run_monthly(market_open,1, time='open', reference_security='000300.XSHG')
+    run_monthly(market_open,-1, time='open', reference_security='000906.XSHG')
     
-# 每月开盘运行一次， 按照上一交易日的因子值进行调仓
+    
+# 每月开盘运行一次， 按照上个月最后一个交易日的因子值进行调仓
 def market_open(context):
     for stock in context.portfolio.positions.keys():
         order_target(stock,0)
         
     date = context.previous_date
-    stock_list= get_index_stocks('000300.XSHG')
-    
+    stock_list= get_index_stocks('000906.XSHG')
+ 
+
     '''获取因子值'''
-    factor_data = calc_factors(stock_list, factors=[SIZE()], start_date=date, end_date=date, 
-                                use_real_price=True, skip_paused=True)['size'].iloc[-1]
-    list(factor_data).sort() #根据因子值升序排列
-    
-    buy_list = factor_data[0:29].index.tolist() #买入因子值最小的30（10%）只股票
-    cash = context.portfolio.total_value/30
+    factor_data = get_factor_values(stock_list, factors=['size'], start_date=date, end_date=date)['size'].iloc[-1]
+    factor_data_sort = factor_data.sort_values()
+    #print(factor_data_sort)
+
+    buy_list = factor_data_sort[0:80].index.tolist() #买入因子值最小的80（10%）只股票
+    cash = context.portfolio.total_value/80
     for stock in buy_list:
         order_target_value(stock,cash)
         
-class SIZE(Factor):
-    # 设置因子名称
-    name = 'size'
-    # 设置获取数据的时间窗口长度
-    max_window = 30
-    # 设置依赖的数据
-    dependencies = ['market_cap']
-
-    # 计算因子的函数， 需要返回一个 pandas.Series, index 是股票代码，value 是因子值
-    def calc(self, data):
-        # 个股最新一季度度的净利润数据
-        market_cap = data['market_cap']
-        # 返回一个 series
-        return market_cap.mean()
+    sell_list = factor_data_sort[720:800].index.tolist() #卖出因子值最大的80（10%）只股票
+    for stock in sell_list:
+        order_target_value(stock,0)
