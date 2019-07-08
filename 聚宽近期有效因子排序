@@ -1,0 +1,45 @@
+# JQ
+
+# 导入函数库
+import jqdata
+import datetime
+import numpy as np 
+from jqfactor import get_factor_values
+
+# 策略初始化
+def initialize(context):
+    stocks = list(get_all_securities(['stock']).index)
+    set_benchmark('000300.XSHG')
+    set_option('use_real_price', True)
+    log.set_level('order', 'error')
+    run_monthly(market_open,-1, time='open', reference_security='000300.XSHG')
+    
+    
+# 每月开盘运行一次， 按照上个月最后一个交易日的因子值进行调仓
+def market_open(context):
+    for stock in context.portfolio.positions.keys():
+        order_target(stock,0)
+        
+    date = context.previous_date
+    stock_list= list(get_all_securities(['stock']).index)
+ 
+
+    '''获取因子值'''(以beta因子为例)
+    factor_data = get_factor_values(stock_list, factors=['beta'], start_date=date, end_date=date)['beta'].iloc[-1]
+    factor_data_sort = factor_data.sort_values()
+    factor_data_sort.dropna=factor_data_sort.dropna()
+    print(factor_data_sort.dropna)
+    
+    n = round(len(factor_data_sort.dropna)*0.1)
+    print(n)
+
+    buy_list = factor_data_sort.dropna[0:n].index.tolist() #买入因子值最小的10%只股票
+    cash = context.portfolio.total_value/n
+    for stock in buy_list:
+        #order_target_value(stock,cash)
+        order_target(stock,-100)
+        
+    sell_list = factor_data_sort.dropna[::-1][:n].index.tolist() #卖出因子值最大的10%只股票
+    for stock in sell_list:
+        #order_target_value(stock,0)
+        order_target(stock,-100)
