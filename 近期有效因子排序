@@ -25,16 +25,16 @@ def market_open(context):
     factor_data_sort.dropna=factor_data_sort.dropna()    
     #print(factor_data_sort.dropna)
     
-    n = round(len(factor_data_sort.dropna)*0.01)
+    n = round(len(factor_data_sort.dropna)*0.1)
     #print(n)
 
-    buy_list = factor_data_sort.dropna[0:n].index.tolist() #买入因子值最小的1%只股票
+    buy_list = factor_data_sort.dropna[0:n].index.tolist() #买入因子值最小的10%只股票
     cash = context.portfolio.portfolio_value/n
     for stock_to_buy in buy_list:
         order_target_value(stock_to_buy,cash,side='long')
         log.info("Buying %s" % (stock_to_buy))
 
-    sell_list = factor_data_sort.dropna[::-1][:n].index.tolist() #卖出因子值最大1%只股票
+    sell_list = factor_data_sort.dropna[::-1][:n].index.tolist() #卖出因子值最大10%只股票
     for stock_to_sell in sell_list:
         order_target(stock_to_sell, 0)
         log.info("Selling %s" % (stock_to_sell))
