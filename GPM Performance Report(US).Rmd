@@ -1,0 +1,213 @@
+---
+title: "GPM Performance Report(US)"
+author: "Xuran ZENG"
+date: "2020/7/15"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r echo=FALSE}
+library(xts)
+library(PerformanceAnalytics)
+library(lubridate)
+library(quantmod)
+
+setwd("d:/Users/XuranZENG/Desktop/asset_allocation")
+source("cal_ret.R")
+
+### read data ---------------
+weights_data.raw<-read.csv("data/assets_weights.csv") ## read in weights data 
+weights_data<-xts(weights_data.raw[,-1],ymd(weights_data.raw[,1])) ## convert to xts
+
+returns_data.raw<-read.csv("data/assets_returns.csv") ## read in price data 
+returns_data<-xts(returns_data.raw[,-1],ymd(returns_data.raw[,1])) ## convert to xts
+
+
+```
+
+### Strategy introduction
+#### Horizon: 2008-01-01/2020-07-14
+#### Risky assets: SPY, QQQ, IWM, VGK, EWJ, EEM, VNQ, DBC, GLD, LQD, HYG, TLT
+#### Crash protection assets: IEF, SHY
+#### Benchmark: 60/40 benchmark with SPY and TLT
+
+### Read data
+#### read data from local csv files, data downloaded previously from yahoo Finance.
+
+```{r eval=FALSE}
+weights_data.raw<-read.csv("data/assets_weights.csv") ## read in weights data 
+returns_data.raw<-read.csv("data/assets_returns.csv") ## read in price data
+```
+
+
+### Generate SPY, benchmark and portfolio returns
+#### generate 60/40 benchmark with SPY and TLT (“benchmark”)
+```{r}
+benchmark.ret<-cbind(returns_data$SPY, returns_data$TLT)
+benchmark.portf<-portf.sixty_fourty(benchmark.ret, rebalance_on="months", verbose=T)
+```
+
+```{r echo=FALSE}
+bench.ret<-benchmark.portf$returns
+colnames(bench.ret)<-"Benchmark"
+
+SPY.ret<-returns_data$SPY
+colnames(SPY.ret)<-"SPY"
+```
+
+#### generate GPM portfolio with 14 assets
+```{r}
+portf <- Return.portfolio(returns_data, weights = weights_data, verbose=T)
+```
+
+```{r echo=FALSE}
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+### Generate Performance
+#### Data from 2015-01-01 to 2020-01-01
+#### Performance Summary
+```{r echo=FALSE}
+tab.perf(cbind(portf.ret['2015-01-01/2020-01-01'], bench.ret['2015-01-01/2020-01-01'],SPY.ret['2015-01-01/2020-01-01']))
+
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret['2015-01-01/2020-01-01'], bench.ret['2015-01-01/2020-01-01'],SPY.ret['2015-01-01/2020-01-01'])
+colnames(ret)<-c("GPM","bench","SPY")
+charts.PerformanceSummary(ret, date.format="%Y%m")
+```
+
+#### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2015-01-01/2020-07-14'], bench.ret['2015-01-01/2020-07-14'],SPY.ret['2015-01-01/2020-07-14']),
+                                   c("Strategy","Benchmark","SPY"))
+cal_annual_ret
+
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+#### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value['2015-01-01/2020-01-01'], date.format="%y/%m", colorset=rainbow12equal, border=NA) ##border is set to NA, otherwise with daily data, there is to much black border, the chart appears to be black
+```
+
+
+#### Data from 2017-01-01 to 2020-01-01
+#### Performance Summary
+```{r echo=FALSE}
+tab.perf(cbind(portf.ret['2017-01-01/2020-01-01'], bench.ret['2017-01-01/2020-01-01'],SPY.ret['2017-01-01/2020-01-01']))
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret['2017-01-01/2020-01-01'], bench.ret['2017-01-01/2020-01-01'],SPY.ret['2017-01-01/2020-01-01'])
+colnames(ret)<-c("GPM","bench","SPY")
+charts.PerformanceSummary(ret, date.format="%Y%m")
+```
+
+#### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2017-01-01/2020-07-14'], bench.ret['2017-01-01/2020-07-14'],SPY.ret['2017-01-01/2020-07-14']),
+                                   c("Strategy","Benchmark","SPY"))
+cal_annual_ret
+
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+#### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value['2017-01-01/2020-01-01'], date.format="%y/%m", colorset=rainbow12equal, border=NA) ##border is set to NA, otherwise with daily data, there is to much black border, the chart appears to be black
+```
+
+#### Data from 2019-01-01 to 2020-01-01
+#### Performance Summary
+```{r echo=FALSE}
+tab.perf(cbind(portf.ret['2019-01-01/2020-01-01'], bench.ret['2019-01-01/2020-01-01'],SPY.ret['2019-01-01/2020-01-01']))
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret['2019-01-01/2020-01-01'], bench.ret['2019-01-01/2020-01-01'],SPY.ret['2019-01-01/2020-01-01'])
+colnames(ret)<-c("GPM","bench","SPY")
+charts.PerformanceSummary(ret, date.format="%Y%m")
+```
+
+#### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2019-01-01/2020-07-14'], bench.ret['2019-01-01/2020-07-14'],SPY.ret['2019-01-01/2020-07-14']),
+                                   c("Strategy","Benchmark","SPY"))
+cal_annual_ret
+
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+#### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value['2019-01-01/2020-01-01'], date.format="%y/%m", colorset=rainbow12equal, border=NA) ##border is set to NA, otherwise with daily data, there is to much black border, the chart appears to be black
+```
+
+#### Data from 2019-06-30 to 2020-01-01
+#### Performance Summary
+```{r echo=FALSE}
+tab.perf(cbind(portf.ret['2019-06-30/2020-01-01'], bench.ret['2019-06-30/2020-01-01'],SPY.ret['2019-06-30/2020-01-01']))
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret['2019-06-30/2020-01-01'], bench.ret['2019-06-30/2020-01-01'],SPY.ret['2019-06-30/2020-01-01'])
+colnames(ret)<-c("GPM","bench","SPY")
+charts.PerformanceSummary(ret, date.format="%Y%m")
+```
+
+#### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2019-06-30/2020-07-14'], bench.ret['2019-06-30/2020-07-14'],SPY.ret['2019-06-30/2020-07-14']),
+                                   c("Strategy","Benchmark","SPY"))
+cal_annual_ret
+
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+#### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value['2019-06-30/2020-01-01'], date.format="%y/%m", colorset=rainbow12equal, border=NA) ##border is set to NA, otherwise with daily data, there is to much black border, the chart appears to be black
+```
+
+#### Year to Date
+#### Performance Summary
+```{r echo=FALSE}
+tab.perf(cbind(portf.ret['2020-01-01/2020-07-14'], bench.ret['2020-01-01/2020-07-14'],SPY.ret['2020-01-01/2020-07-14']))
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret['2020-01-01/2020-07-14'], bench.ret['2020-01-01/2020-07-14'],SPY.ret['2020-01-01/2020-07-14'])
+colnames(ret)<-c("GPM","bench","SPY")
+charts.PerformanceSummary(ret, date.format="%Y%m")
+```
+
+#### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2020-01-01/2020-07-14'], bench.ret['2020-01-01/2020-07-14'],SPY.ret['2020-01-01/2020-07-14']),
+                                   c("Strategy","Benchmark","SPY"))
+cal_annual_ret
+
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+#### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value['2020-01-01/2020-07-14'], date.format="%y/%m", colorset=rainbow12equal, border=NA) ##border is set to NA, otherwise with daily data, there is to much black border, the chart appears to be black
+```
