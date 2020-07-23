@@ -7,33 +7,33 @@ library(PerformanceAnalytics)
 library(lubridate)
 library(quantmod)
 
+setwd("d:/Users/XuranZENG/Desktop/asset_allocation")
+source("cal_ret.R")
+
 
 ## define strategy function
 #input: all_assets
 #output: assets_weights
 #functionality: use GPM to calculate weights of each asset and obtain them in csv form
 
-GPM<-function(all_assets){
+GPM<-function(all_assets,N){
   #split into two part: Rrisky and Rcp
   Rrisky_price_data<- subset(all_assets, select = Risky)
   Rcp_price_data<-subset(all_assets, select = cp)
   
   #calculate ri 
   #output: Risky.ret(xts)
-  Risky.ret= do.call(merge.xts,lapply(colnames(Rrisky_price_data),function(x){ 
-    ret = periodReturn(Rrisky_price_data[,x],period = "monthly");
-    colnames(ret) = x;
-    return(ret) 
-  } ))
+  Rrisky_price_data <-na.locf(Rrisky_price_data)
+  Risky_daily.ret<-na.omit(ROC(Rrisky_price_data))
   
+  Risky.ret<-lapply(Rrisky_price_data,function(x) periodReturn(x,period = "monthly"))
+  Risky.ret<-as.data.frame(Risky.ret)
+  colnames(Risky.ret)<-Risky
   
   #calculate ci
   #output: Risky.cor(num)
-  universe_portf.ret<-periodReturn(Rrisky_price_data,period="monthly")
-  Risky.cor<-list()
-  for(i in Risky){
-    Risky.cor[[i]]<-cor(Risky.ret[,i], universe_portf.ret)
-  }
+  universe_portf.ret<-periodReturn(Rrisky_price_data,period="daily")[-1,]
+  Risky.cor<-lapply(Risky_daily.ret, function(x) cor(x, universe_portf.ret))
   Risky.cor<-unlist(Risky.cor)
   
   #calculate zi
@@ -41,23 +41,26 @@ GPM<-function(all_assets){
   Risky.z<-as.data.frame(Risky.ret) * (1-Risky.cor)
   
   #calculate number
+
   n <- rowSums(Risky.z>0)
   
   #calculate weights(wcp and wRisky)
+  NR<-length(Risky)
   weights<-data.frame(n=n, wcp=0, wRisky=0)
-  weights[which(weights$n<=length(Risky)*0.5),'wcp']<-1
-  w<-(length(Risky)-weights$n)/(length(Risky)*0.5)
-  weights[which(weights$n>length(Risky)*0.5),'wcp']<-w[which(weights$n>length(Risky)*0.5)]
-  weights[which(weights$n>length(Risky)*0.5),'wRisky']<-1-w[which(weights$n>length(Risky)*0.5)]
+  weights[which(weights$n<=NR*0.5),'wcp']<-1
+  w<-(NR-weights$n)/(NR*0.5)
+  weights[which(weights$n>NR*0.5),'wcp']<-w[which(weights$n>NR*0.5)]
+  weights[which(weights$n>NR*0.5),'wRisky']<-1-w[which(weights$n>NR*0.5)]
+  
+
+  
   
   #select Risky assets
-  #做不到把资产个数作为参数输入......
-  selected<-data.frame(Max1=0,Max2=0,Max3=0)
+  selected<-as.data.frame(matrix(numeric(0),ncol=N))
   for (i in 1:length(w)){
-    selected[i,'Max1']<-colnames(sort(Risky.z[i,],decreasing = TRUE)[1])
-    selected[i,'Max2']<-colnames(sort(Risky.z[i,],decreasing = TRUE)[2])
-    selected[i,'Max3']<-colnames(sort(Risky.z[i,],decreasing = TRUE)[3])
+    selected[i,]<-colnames(sort(Risky.z[i,],decreasing = TRUE)[1:n])
   }
+  
   selected <- cbind(date=as.Date(rownames(Risky.z)),selected) #dataframe
   selected<-xts(selected[,-1], ymd(selected[,1])) # convert to xts
   selected <- as.data.frame(selected)
@@ -65,20 +68,23 @@ GPM<-function(all_assets){
   assets_weights<-data.frame(weights)
   assets_weights<- cbind(date=as.Date(rownames(Risky.z)),assets_weights)
   assets_weights<-merge(selected, assets_weights, by="date")
-  
-  #calculate assets weights
+
+  #calculate assets weights  
+  #weights of crash protection assets
   for(i in cp){
     assets_weights[i]<-0.5*assets_weights$wcp
   }
   
+  #weights of risky assets
+  N1<-N+1
   for (i in 1:length(w)){
-    assets_weights[i,assets_weights[i,'Max1']]<-1/3*assets_weights$wRisky[i]
-    assets_weights[i,assets_weights[i,'Max2']]<-1/3*assets_weights$wRisky[i]
-    assets_weights[i,assets_weights[i,'Max3']]<-1/3*assets_weights$wRisky[i]
-  }
+    for (j in 2:N1){
+      assets_weights[i,assets_weights[i,j]]<-1/N*assets_weights$wRisky[i]
+    }}
   
   assets_weights[is.na(assets_weights)] <- 0
-  assets_weights<-subset(assets_weights, select = -c(Max1,Max2, Max3, n, wcp, wRisky))
+  row_eliminate=4+N
+  assets_weights<-subset(assets_weights, select = -c(2:row_eliminate))
   
   
 }
@@ -109,6 +115,8 @@ cp<-c("IEF","SHY")
 start_date <- "2008-01-01"  
 end_date <- "2020-07-14"  
 
+N<-4  #number of risky assets chosen
+
 #download financial data
 symbols<-merged.list<-c(Risky, cp)    
 getSymbols(symbols, from=start_date,to=end_date)
@@ -121,7 +129,29 @@ colnames(all_assets)<-symbols
 
 #get csv
 Returns<-Returns(all_assets)
-Strategy<-GPM(all_assets)
+Strategy<-GPM(all_assets,N)
 
 write.csv(Returns,"d:\\Users\\XuranZENG\\Desktop\\assets_returns.csv", row.names = FALSE)
 write.csv(Strategy,"d:\\Users\\XuranZENG\\Desktop\\assets_weights.csv", row.names = FALSE)
+
+#backtest
+weights_data.raw<-read.csv("data/assets_weights.csv") ## read in weights data 
+weights_data<-xts(weights_data.raw[,-1],ymd(weights_data.raw[,1])) ## convert to xts
+
+returns_data.raw<-read.csv("data/assets_returns.csv") ## read in price data 
+returns_data<-xts(returns_data.raw[,-1],ymd(returns_data.raw[,1])) ## convert to xts
+
+portf <- Return.portfolio(returns_data, weights = weights_data, verbose=T)
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+
+benchmark.ret<-cbind(returns_data$SPY, returns_data$TLT)
+benchmark.portf<-portf.sixty_fourty(benchmark.ret, rebalance_on="months", verbose=T)
+bench.ret<-benchmark.portf$returns
+colnames(bench.ret)<-"Benchmark"
+
+tab.perf2(portf.ret, bench.ret)
+
+ret<-cbind(portf.ret, bench.ret)
+colnames(ret)<-c("GPM","bench")
+charts.PerformanceSummary(ret, date.format="%Y%m")
