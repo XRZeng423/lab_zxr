@@ -133,25 +133,3 @@ Strategy<-GPM(all_assets,N)
 
 write.csv(Returns,"d:\\Users\\XuranZENG\\Desktop\\assets_returns.csv", row.names = FALSE)
 write.csv(Strategy,"d:\\Users\\XuranZENG\\Desktop\\assets_weights.csv", row.names = FALSE)
-
-#backtest
-weights_data.raw<-read.csv("data/assets_weights.csv") ## read in weights data 
-weights_data<-xts(weights_data.raw[,-1],ymd(weights_data.raw[,1])) ## convert to xts
-
-returns_data.raw<-read.csv("data/assets_returns.csv") ## read in price data 
-returns_data<-xts(returns_data.raw[,-1],ymd(returns_data.raw[,1])) ## convert to xts
-
-portf <- Return.portfolio(returns_data, weights = weights_data, verbose=T)
-portf.ret<-portf$returns
-colnames(portf.ret)<-"Strategy"
-
-benchmark.ret<-cbind(returns_data$SPY, returns_data$TLT)
-benchmark.portf<-portf.sixty_fourty(benchmark.ret, rebalance_on="months", verbose=T)
-bench.ret<-benchmark.portf$returns
-colnames(bench.ret)<-"Benchmark"
-
-tab.perf2(portf.ret, bench.ret)
-
-ret<-cbind(portf.ret, bench.ret)
-colnames(ret)<-c("GPM","bench")
-charts.PerformanceSummary(ret, date.format="%Y%m")
