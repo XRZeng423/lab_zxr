@@ -1,4 +1,4 @@
-#input: assets code, date
+#input: assets code, date, number of risky assets chosen, length of period to calculate zi
 #output: assets returns, weights in csv
 #functionality: calculate assets weights based on Generalized Protective Momentum 
 
@@ -13,7 +13,7 @@ source("cal_ret.R")
 
 
 ## define strategy function
-#input: all_assets
+#input: all_assets, number of risky assets chosen, length of period to calculate zi
 #output: assets_weights
 #functionality: use GPM to calculate weights of each asset and obtain them in csv form
 
@@ -31,9 +31,11 @@ GPM<-function(all_assets,N, P){
   Risky_monthly.ret<-as.data.frame(Risky_monthly.ret)
   colnames(Risky_monthly.ret)<-Risky
   
-  Risky.ret<-lapply(Risky_monthly.ret, function(x) runSum(x, n = P, cumulative = FALSE))
+  Risky.ret<-lapply(Risky_monthly.ret, function(x) runSum(x, n = P, cumulative = FALSE))#change length of period to calculate zi
   Risky.ret<-as.data.frame(Risky.ret)
   colnames(Risky.ret)<-Risky
+  P1<-P-1
+  Risky.ret[c(1:P1),]<-Risky_monthly.ret[c(1:P1),] #use monthly return to replace NA
   
   #calculate ci
   #output: Risky.cor(num)
@@ -43,8 +45,9 @@ GPM<-function(all_assets,N, P){
   
   #calculate zi
   #output: Risky.z(dataframe)
-  #Risky.z<-as.data.frame(Risky.ret3M) * (1-Risky.cor)
-  Risky.z<-as.data.frame(Risky.ret3) * (1-Risky.cor)
+  Risky.z<-as.data.frame(Risky.ret) * (1-Risky.cor)
+  
+  
   
   #calculate number
 
@@ -64,15 +67,15 @@ GPM<-function(all_assets,N, P){
   #select Risky assets
   selected<-as.data.frame(matrix(numeric(0),ncol=N))
   for (i in 1:length(w)){
-    selected[i,]<-colnames(sort(Risky.z[i,],decreasing = TRUE)[1:n])
+    selected[i,]<-colnames(sort(Risky.z[i,],decreasing = TRUE)[1:N])
   }
-  
-  selected <- cbind(date=as.Date(rownames(Risky.z)),selected) #dataframe
+  Risky.z <- cbind(date=as.Date(rownames(Risky_monthly.ret)),Risky.z) #dataframe
+  selected <- cbind(date=as.Date(rownames(Risky_monthly.ret)),selected) #dataframe
   selected<-xts(selected[,-1], ymd(selected[,1])) # convert to xts
   selected <- as.data.frame(selected)
-  selected <- cbind(date=as.Date(rownames(Risky.z)),selected) #dataframe
+  selected <- cbind(date=as.Date(rownames(Risky_monthly.ret)),selected) #dataframe
   assets_weights<-data.frame(weights)
-  assets_weights<- cbind(date=as.Date(rownames(Risky.z)),assets_weights)
+  assets_weights<- cbind(date=as.Date(rownames(Risky_monthly.ret)),assets_weights)
   assets_weights<-merge(selected, assets_weights, by="date")
 
   #calculate assets weights  
@@ -81,11 +84,13 @@ GPM<-function(all_assets,N, P){
     assets_weights[i]<-0.5*assets_weights$wcp
   }
   
+  assets_weights$date <- as.character(assets_weights$date) #dont understand why but it works
+
   #weights of risky assets
   N1<-N+1
   for (i in 1:length(w)){
     for (j in 2:N1){
-      assets_weights[i,assets_weights[i,j]]<-1/N*assets_weights$wRisky[i]
+      assets_weights[i,assets_weights[i,j]]<-(assets_weights$wRisky[i])/N
     }}
   
   assets_weights[is.na(assets_weights)] <- 0
@@ -121,8 +126,8 @@ cp<-c("IEF","SHY")
 start_date <- "2008-01-01"  
 end_date <- "2020-07-14"  
 
-N<-4  #number of risky assets chosen
-P<-3  #number of months used to calculate zi (1month, 3months, 6months, etc)
+N<-5  #number of risky assets chosen
+P<-6  #number of months used to calculate zi (1month, 3months, 6months, etc)
 
 #download financial data
 symbols<-merged.list<-c(Risky, cp)    
@@ -138,27 +143,5 @@ colnames(all_assets)<-symbols
 Returns<-Returns(all_assets)
 Strategy<-GPM(all_assets,N,P)
 
-write.csv(Returns,"d:\\Users\\XuranZENG\\Desktop\\assets_returns.csv", row.names = FALSE)
-write.csv(Strategy,"d:\\Users\\XuranZENG\\Desktop\\assets_weights.csv", row.names = FALSE)
-
-#backtest
-weights_data.raw<-read.csv("data/assets_weights.csv") ## read in weights data 
-weights_data<-xts(weights_data.raw[,-1],ymd(weights_data.raw[,1])) ## convert to xts
-
-returns_data.raw<-read.csv("data/assets_returns.csv") ## read in price data 
-returns_data<-xts(returns_data.raw[,-1],ymd(returns_data.raw[,1])) ## convert to xts
-
-portf <- Return.portfolio(returns_data, weights = weights_data, verbose=T)
-portf.ret<-portf$returns
-colnames(portf.ret)<-"Strategy"
-
-benchmark.ret<-cbind(returns_data$SPY, returns_data$TLT)
-benchmark.portf<-portf.sixty_fourty(benchmark.ret, rebalance_on="months", verbose=T)
-bench.ret<-benchmark.portf$returns
-colnames(bench.ret)<-"Benchmark"
-
-tab.perf2(portf.ret, bench.ret)
-
-ret<-cbind(portf.ret, bench.ret)
-colnames(ret)<-c("GPM","bench")
-charts.PerformanceSummary(ret, date.format="%Y%m")
+#write.csv(Returns,"d:\\Users\\XuranZENG\\Desktop\\assets_returns.csv", row.names = FALSE)
+#write.csv(Strategy,"d:\\Users\\XuranZENG\\Desktop\\assets_weights.csv", row.names = FALSE)
