@@ -1,4 +1,4 @@
-#input: assets code, date
+#input: assets code, date, number of risky assets chosen
 #output: assets returns, weights in csv
 #functionality: calculate assets weights based on Generalized Protective Momentum 
 
