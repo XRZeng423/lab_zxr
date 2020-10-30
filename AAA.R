@@ -114,7 +114,7 @@ aaa<-function(data,n.top=5,n.mom=6*21,n.vol=1*21,target.sd=0){
 }
 
 
-minrisk.model<-aaa(n.top=4,n.mom=6*21,n.vol=2*21,target.sd=0)
+minrisk.model<-aaa(n.top=5,n.mom=6*21,n.vol=2*21,target.sd=0)
 table.AnnualizedReturns(minrisk.model$returns.monthly)
 minrisk.model$returns.ac #returns of individual asset classes
 minrisk.model$sd.ac #risk of individual asset classes
