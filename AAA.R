@@ -1,13 +1,9 @@
 #Adaptive Asset Allocation
 
 library(xts)
-
 library(fPortfolio)
-
 library(timeSeries)
-
 library(PerformanceAnalytics)
-
 library(corpcor)
 
 
