@@ -80,26 +80,35 @@ weights<-s_weight
 portf <- Return.portfolio(daily_return,s_weight, verbose=T)
 portf.ret<-portf$returns
 
-#做一个表每天根据过去60天组合收益计算年化波动率
+#做一个表每天根据过去22天组合收益计算年化波动率
 daily_vol<-data.frame(portf.ret,AV = matrix(NA,length(portf.ret),1))
-for (i in 60:length(portf.ret)){
-  daily_vol[i,2]<-StdDev.annualized(portf.ret[(i-59):i,])
+
+for (i in 22:length(portf.ret)){
+  daily_vol[i,2]<-StdDev.annualized(portf.ret[(i-21):i,])
 }
 
 #从日波动率中取每月月底调仓日的波动率
-monthly_vol<- daily_vol[period.ends,]
+monthly_vol<- daily_vol[last_trading_dates,]
 weights$AV<-monthly_vol$AV
-weights<-round(weights,2)
 
 #增加现金使波动率降低
 #令现金权重为x，列方程,求解X
 
+#波动率大于0.07的才调整
+
+
+no.adjust<-subset(weights,weights$AV<=0.07)
+adjust<-subset(weights,weights$AV>0.07)
+adjust_dates<- as.Date(rownames(as.data.frame(adjust)))
+
 #计算方差协方差
+#var.a<-apply.monthly(daily_return$SPY, function(x) var(x))[adjust_dates,]
 var.a<-apply.monthly(daily_return$SPY, function(x) var(x))
 var.b<-apply.monthly(daily_return$IEF, function(x) var(x))
 var.c<-apply.monthly(daily_return$GLD, function(x) var(x))
 var.d<-apply.monthly(daily_return$SHV, function(x) var(x))
 
+#cov.ab <- apply.monthly(daily_return[,c('SPY','IEF')], function(x) cov(x))[adjust_dates,2]
 cov.ab <- apply.monthly(daily_return[,c('SPY','IEF')], function(x) cov(x))[,2]
 cov.ac <- apply.monthly(daily_return[,c('SPY','GLD')], function(x) cov(x))[,2]
 cov.ad <- apply.monthly(daily_return[,c('SPY','SHV')], function(x) cov(x))[,2]
@@ -120,52 +129,51 @@ G=(0.07/(252)^0.5)^2
 
 
 #f<-function(x, WA, WB, WC, WD, cov.ab, cov.ac, cov.ad, cov.bc, cov.bd, cov.cd, var.a, var.b, var.c, var.d) {return(
-    x^2*var.d+(1-x)^2*WA^2*cov.ad+(1-x)^2*WB^2*cov.bd+(1-x)^2*WC^2*cov.cd+
-    x^2*cov.ad+(1-x)^2*WA^2*var.a+(1-x)^2*WB^2*cov.ab+(1-x)^2*WC^2*cov.ac+
-    x^2*cov.bd+(1-x)^2*WA^2*cov.ab+(1-x)^2*WB^2*var.b+(1-x)^2*WC^2*cov.bc+
-    x^2*cov.cd+(1-x)^2*WA^2*cov.ac+(1-x)^2*WB^2*cov.bc+(1-x)^2*WC^2*var.c-(0.07/(252)^0.5)^2
-  )
+    #x^2*var.d+(1-x)^2*WA^2*cov.ad+(1-x)^2*WB^2*cov.bd+(1-x)^2*WC^2*cov.cd+
+    #x^2*cov.ad+(1-x)^2*WA^2*var.a+(1-x)^2*WB^2*cov.ab+(1-x)^2*WC^2*cov.ac+
+    #x^2*cov.bd+(1-x)^2*WA^2*cov.ab+(1-x)^2*WB^2*var.b+(1-x)^2*WC^2*cov.bc+
+    #x^2*cov.cd+(1-x)^2*WA^2*cov.ac+(1-x)^2*WB^2*cov.bc+(1-x)^2*WC^2*var.c-(0.07/(252)^0.5)^2
+#  )
 #result1 <- uniroot(f,c(0,1),WA=WA, WB=WB, WC=WC, WD=WD, cov.ab=cov.ab, cov.ac=cov.ac, cov.ad=cov.ad, cov.bc=cov.bc, cov.bd=cov.bd, cov.cd=cov.cd, var.a=var.a, var.b=var.b, var.c=var.c, var.d=var.d,tol=0.0001)
 #手算后发现有些时候该方程无（0，1）之间的解，即无论如何波动率都大于7%，所以改为求年化波动率最小时的解
 
 del=4*(A*G+E*G-A*E)
 
-###del<0去除，del大于0求解
-#del[which(del$SHV<=0),'SHV']<-NA
-
-colnames(A)<-'SHV'
-A[which(del$SHV<=0),'SHV']<-NA
-A<-na.omit(A)
-
-colnames(E)<-'SHV'
-E[which(del$SHV<=0),'SHV']<-NA
-E<-na.omit(E)
-
-del=4*(A*G+E*G-A*E)
-
 X1=(2*E-del^0.5)/(2*(A+E))
+colnames(X1)<-'X1'
 X2=(2*E+del^0.5)/(2*(A+E))
+colnames(X2)<-'X2'
+X12<-(X1+X2)/2
+colnames(X12)<-'X12'
+X<-cbind(weights,X1,X2,X12)
+X$adjust<-NA
 
-X12<-E/(A+E)
+X[which(X$X1>=0 & X$X1<=1),'adjust']<-X[which(X$X1>=0 & X$X1<=1),'X1']
+X[which(X$X2>=0 & X$X2<=1),'adjust']<-X[which(X$X2>=0 & X$X2<=1),'X2']
 
-#做一个表放D的权重，即现金权重【做到这里了！！！】
-WD<-data.frame(last_trading_dates,SHV = matrix(NA,length(last_trading_dates),1))
-WD[which(X12$SHV>0),'SHV']<-X1[which(X12$SHV>0),'SHV']
+X[which(X$X1<0 & X$X2>1 & X$X12>=0),'adjust']<-0
+X[which(X$X1<0 & X$X2>1 & X$X12<0),'adjust']<-1
 
-#一元二次方程最小值在对称轴
-f<-function(X, A,E)  (A+E)*X^2-2*E*X+E
+adjust<-weights
+adjust$SHV.ad<-X$adjust
+adjust[which(is.na(X$adjust)),'SHV.ad']<-adjust[which(is.na(X$adjust)),'SHV']
+adjust$SPY.ad<-adjust$SPY*(1-adjust$SHV.ad)
+adjust$IEF.ad<-adjust$IEF*(1-adjust$SHV.ad)
+adjust$GLD.ad<-adjust$GLD*(1-adjust$SHV.ad)
 
-WD<-E/(A+E)
-colnames(WD)<-'SHV'
 
-#对称轴大于1，即波动率最小时权重大于1时，取权重为1
-WD[which(WD$SHV>1),'SHV'] <- 1
-weights$SPY<-WA*(1-WD)
-weights$IEF<-WB*(1-WD)
-weights$GLD<-WC*(1-WD)
-weights$SHV<-WD$SHV
 
-weights<-weights[,c('SPY', 'IEF','GLD','SHV')]
+
+
+weights<-adjust[,c('SPY.ad', 'IEF.ad','GLD.ad','SHV.ad')]
+colnames(weights)<-c('SPY', 'IEF','GLD','SHV')
+
+
+no.adjust_dates<- as.Date(rownames(as.data.frame(no.adjust)))
+weights[no.adjust_dates,]<-no.adjust[no.adjust_dates,c('SPY', 'IEF','GLD','SHV')]
+
+
+
 #再次求年化波动率
 
 # 根据每日收益和每月调仓权重构建组合
@@ -173,11 +181,11 @@ portf <- Return.portfolio(daily_return,weights, verbose=T)
 portf.ret<-portf$returns
 
 #做一个表每天根据过去60天组合收益计算年化波动率
-daily_vol<-data.frame(portf.ret,AV = matrix(NA,length(portf.ret),1))
-for (i in 60:length(portf.ret)){
-  daily_vol[i,2]<-StdDev.annualized(portf.ret[(i-59):i,])
+daily_vol1<-data.frame(portf.ret,AV = matrix(NA,length(portf.ret),1))
+for (i in 22:length(portf.ret)){
+  daily_vol1[i,2]<-StdDev.annualized(portf.ret[(i-21):i,])
 }
 
 #从日波动率中取每月月底调仓日的波动率
-monthly_vol<- daily_vol[period.ends,]
+monthly_vol1<- daily_vol1[last_trading_dates,]
 
