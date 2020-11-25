@@ -1,6 +1,3 @@
-#input: assets code, date, number of risky assets chosen, length of period to calculate zi
-#output: assets returns, weights in csv
-#functionality: calculate assets weights based on Generalized Protective Momentum 
 
 library(xts)
 library(PerformanceAnalytics)
@@ -14,10 +11,6 @@ source("funs.R")
 
 
 
-## define strategy function
-#input: all_assets, number of risky assets chosen, length of period to calculate zi
-#output: assets_weights
-#functionality: use GPM to calculate weights of each asset and obtain them in csv form
 
 VAA<-function(asset_price){
   
