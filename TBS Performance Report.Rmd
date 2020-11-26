@@ -1,0 +1,235 @@
+---
+title: "TBS Performance Report"
+author: "Xuran ZENG"
+date: "2020/11/26"
+output: 
+  html_document: 
+    toc: yes
+    toc_float: true  
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r echo=FALSE}
+library(xts)
+library(PerformanceAnalytics)
+library(lubridate)
+library(quantmod)
+
+
+
+source("C:/Users/carol/Desktop/asset_allocation/cal_ret.R")
+
+```
+
+# Strategy introduction
+## Setting
+##### Horizon: 2014-01-01/2020-07-14
+##### bond assets: SHY, IEF, TLT, TIP, LQD, HYG, BNDX, EMB
+##### Benchmark: equal-weight portfolio
+
+## Process
+##### downloaded data from yahoo Finance.
+```{r echo=FALSE}
+weights_data.raw<-read.csv("C:\\Users\\carol\\Desktop\\asset_allocation\\TBS\\assets_weights.csv") ## read in weights data 
+weights_data<-xts(weights_data.raw[,-1],ymd(weights_data.raw[,1])) ## convert to xts
+
+returns_data.raw<-read.csv("C:\\Users\\carol\\Desktop\\asset_allocation\\TBS\\assets_returns.csv") ## read in returns data 
+returns_data<-xts(returns_data.raw[,-1],ymd(returns_data.raw[,1])) ## convert to xts
+
+
+```
+
+
+#### Generate benchmark and portfolio returns
+##### generate equal-weight benchmark (“benchmark”)
+```{r}
+equal_weights<-rep(1/ncol(returns_data),ncol(returns_data)) 
+bench.ret<-Return.portfolio(returns_data,weights = equal_weights,rebalance_on = "months")
+colnames(bench.ret)<-"Benchmark"
+```
+
+
+##### generate TBS portfolio 
+```{r}
+portf <- Return.portfolio(returns_data, weights = weights_data, verbose=T)
+```
+
+```{r echo=FALSE}
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+# Strategy Performance
+## Data from 2014-01-01 to 2020-01-01
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(cbind(portf.ret['2014-01-01/2020-01-01'], bench.ret['2014-01-01/2020-01-01']))
+
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret['2014-01-01/2020-01-01'], bench.ret['2014-01-01/2020-01-01'])
+colnames(ret)<-c("TBS","bench")
+charts.PerformanceSummary(ret, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2014-01-01/2020-01-01'], bench.ret['2014-01-01/2020-01-01']),
+                                   c("Strategy","Benchmark"))
+cal_annual_ret
+
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value['2014-01-01/2020-01-01'], date.format="%y/%m", colorset=rainbow12equal, border=NA) ##border is set to NA, otherwise with daily data, there is to much black border, the chart appears to be black
+```
+
+## Data from 2015-01-01 to 2020-01-01
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(cbind(portf.ret['2015-01-01/2020-01-01'], bench.ret['2015-01-01/2020-01-01']))
+
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret['2015-01-01/2020-01-01'], bench.ret['2015-01-01/2020-01-01'])
+colnames(ret)<-c("TBS","bench")
+charts.PerformanceSummary(ret, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2015-01-01/2020-07-14'], bench.ret['2015-01-01/2020-07-14']),
+                                   c("Strategy","Benchmark"))
+cal_annual_ret
+
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value['2015-01-01/2020-01-01'], date.format="%y/%m", colorset=rainbow12equal, border=NA) ##border is set to NA, otherwise with daily data, there is to much black border, the chart appears to be black
+```
+
+## Data from 2017-01-01 to 2020-01-01
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(cbind(portf.ret['2017-01-01/2020-01-01'], bench.ret['2017-01-01/2020-01-01']))
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret['2017-01-01/2020-01-01'], bench.ret['2017-01-01/2020-01-01'])
+colnames(ret)<-c("TBS","bench")
+charts.PerformanceSummary(ret, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2017-01-01/2020-07-14'], bench.ret['2017-01-01/2020-07-14']),
+                                   c("Strategy","Benchmark"))
+cal_annual_ret
+
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value['2017-01-01/2020-01-01'], date.format="%y/%m", colorset=rainbow12equal, border=NA) ##border is set to NA, otherwise with daily data, there is to much black border, the chart appears to be black
+```
+
+## Data from 2019-01-01 to 2020-01-01
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(cbind(portf.ret['2019-01-01/2020-01-01'], bench.ret['2019-01-01/2020-01-01']))
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret['2019-01-01/2020-01-01'], bench.ret['2019-01-01/2020-01-01'])
+colnames(ret)<-c("TBS","bench")
+charts.PerformanceSummary(ret, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2019-01-01/2020-07-14'], bench.ret['2019-01-01/2020-07-14']),
+                                   c("Strategy","Benchmark"))
+cal_annual_ret
+
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value['2019-01-01/2020-01-01'], date.format="%y/%m", colorset=rainbow12equal, border=NA) ##border is set to NA, otherwise with daily data, there is to much black border, the chart appears to be black
+```
+
+## Data from 2019-06-30 to 2020-01-01
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(cbind(portf.ret['2019-06-30/2020-01-01'], bench.ret['2019-06-30/2020-01-01']))
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret['2019-06-30/2020-01-01'], bench.ret['2019-06-30/2020-01-01'])
+colnames(ret)<-c("TBS","bench")
+charts.PerformanceSummary(ret, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2019-06-30/2020-07-14'], bench.ret['2019-06-30/2020-07-14']),
+                                   c("Strategy","Benchmark"))
+cal_annual_ret
+
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value['2019-06-30/2020-01-01'], date.format="%y/%m", colorset=rainbow12equal, border=NA) ##border is set to NA, otherwise with daily data, there is to much black border, the chart appears to be black
+```
+
+## Year to Date
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(cbind(portf.ret['2020-01-01/2020-07-14'], bench.ret['2020-01-01/2020-07-14']))
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret['2020-01-01/2020-07-14'], bench.ret['2020-01-01/2020-07-14'])
+colnames(ret)<-c("TBS","bench")
+charts.PerformanceSummary(ret, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2020-01-01/2020-07-14'], bench.ret['2020-01-01/2020-07-14']),
+                                   c("Strategy","Benchmark"))
+cal_annual_ret
+
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value['2020-01-01/2020-07-14'], date.format="%y/%m", colorset=rainbow12equal, border=NA) ##border is set to NA, otherwise with daily data, there is to much black border, the chart appears to be black
+```
