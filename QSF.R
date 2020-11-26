@@ -40,13 +40,6 @@ QSF<-function(assets_price){
   for (i in 1:length(R3[,1])){
     R3[i,'max']<-colnames(sort(R3[i,c("SPY", "QQQ", "EFA", "EEM", "TLT")],decreasing = TRUE)[1:1])
   }
-  
-  
-  period.ends = endpoints(assets_price, 'months')
-  period.ends = period.ends[period.ends > 0] 
-  n.mos  <- length(period.ends)
-  last_trading_dates = as.Date(rownames(as.data.frame(assets_price)))[period.ends]
-  
 
   #每个月最后一个交易日计算5个risk assets中为负的数量
   R3$n <- rowSums(R3[,c("SPY", "QQQ", "EFA", "EEM", "TLT") ]<0)
@@ -57,7 +50,7 @@ QSF<-function(assets_price){
   
   
   #如果任意一个资产的3个月收益为负(即为负的资产数量n>0)，则全部配置defensive asset
-  weights[which(weights[,7]>0),'IEF']<-1
+  weights[which(weights[,'n']>0),'IEF']<-1
   
   #如果所有资产的3个月收益都为正，则全部配置3个月收益最高的资产
 
