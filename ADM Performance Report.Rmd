@@ -91,7 +91,6 @@ charts.PerformanceSummary(ret, date.format="%Y%m")
 cal_annual_ret<-gen_cal_annual_ret(cbind(portf.ret['2008-01-01/2020-01-01'], bench.ret['2008-01-01/2020-01-01'],SPY.ret['2008-01-01/2020-01-01']),
                                    c("Strategy","Benchmark","SPY"))
 cal_annual_ret
-
 #grid.newpage()
 #grid.table(cal_annual_ret)
 ```

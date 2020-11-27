@@ -72,7 +72,6 @@ ADM<-function(assets_price){
   weights[which(weights[,'C3']==TRUE & weights[,'C4']==TRUE),'TLT']<-1
   weights[which(weights[,'C3']==TRUE & weights[,'C4']==FALSE),'TIP']<-1
   
-  
   weights<-weights[,symbols]
   
   weights[is.na(weights)] <- 0
