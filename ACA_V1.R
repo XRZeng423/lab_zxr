@@ -1,10 +1,3 @@
-#input: assets code, date, number of risky assets chosen, length of period to calculate zi
-
-#output: assets returns, weights in csv
-
-#functionality: calculate assets weights based on Generalized Protective Momentum 
-
-
 
 library(xts)
 
@@ -16,170 +9,180 @@ library(quantmod)
 
 library(TTR)
 
-library(ggplot2)
+
+
+ACA<-function(all_assets){
+  
+  all_assets<-as.data.frame(all_assets)
+  all_assets <- cbind(date=as.Date(rownames(all_assets)),all_assets)
+  #all_assets<-xts(all_assets[,-1], ymd(all_assets[,1])) #xts
+  #t<-1:length(all_assets[,4])
+  rownames(all_assets)<-1:length(all_assets[,4])
+  list<-c("RA1","RA2","RA3","DA1","DA2")
+  colnames(all_assets)<-c('date',list)
+  
+  #esquisse::esquisser()
+  
+  
+  
+  price_channel <- data.frame(RA1 = matrix(NA,5,1),RA2 = matrix(NA,5,1),RA3 = matrix(NA,5,1),row.names = c("UC_126","UC_252","LC_126","LC_252","close"))
+  
+  #做一个放weights的表
+  #列名是数字，第一列是日期
+  l<-length(all_assets[,4])-250
+  asset_weight <- data.frame(date=all_assets$date[251:length(all_assets[,4])],RA1 = matrix(NA,l,1),RA2 = matrix(NA,l,1),RA3 = matrix(NA,l,1),DA2 = matrix(NA,l,1),DA1 = matrix(NA,l,1),DA3 = matrix(NA,l,1),DA= matrix(NA,l,1), row.names =251:length(all_assets[,4]) )
+  
+  
+  ##列名是日期，第一列是数字
+  #l<-length(all_assets[,4])-252
+  #asset_weight <- data.frame(t=251:length(all_assets[,4]),RA1 = matrix(NA,l,1),RA2 = matrix(NA,l,1),RA3 = matrix(NA,l,1),DA = matrix(NA,l,1),DA2 = matrix(NA,l,1),row.names = all_assets$date[251:length(all_assets[,4])])
+  
+  asset_weight[1,'RA1'] = 1/3
+  asset_weight[1,'RA2'] = 1/3
+  asset_weight[1,'RA3'] = 1/3
+  asset_weight[1,'DA1'] = 0
+  asset_weight[1,'DA3'] = 0
+  asset_weight[1,'DA2'] = 0
+  asset_weight[1,'DA']=0
+  
+  for(i in 252:length(all_assets[,4])){
+    #max(all_assets$RA1[1:252])
+    #max(all_assets$RA1[127:252])
+    
+    #i=252
+    #RA1过去252天最高收盘价
+    UC_252_RA1<-max(all_assets$RA1[(i-251):i])
+    #RA1过去252天最低收盘价
+    LC_252_RA1<-min(all_assets$RA1[(i-251):i])
+    #RA1过去126天最高收盘价
+    UC_126_RA1<-max(all_assets$RA1[(i-125):i])
+    #RA1过去126天最低收盘价
+    LC_126_RA1<-min(all_assets$RA1[(i-125):i])
+    
+    #填入RA1的price channel表
+    price_channel['UC_126','RA1']<-UC_126_RA1
+    price_channel['UC_252','RA1']<-UC_252_RA1
+    price_channel['LC_126','RA1']<-LC_126_RA1
+    price_channel['LC_252','RA1']<-LC_252_RA1
+    price_channel['close','RA1']<-all_assets$RA1[i]
+    
+    #RA2过去252天最高收盘价
+    UC_252_RA2<-max(all_assets$RA2[(i-251):i])
+    #RA2过去252天最低收盘价
+    LC_252_RA2<-min(all_assets$RA2[(i-251):i])
+    #RA2过去126天最高收盘价
+    UC_126_RA2<-max(all_assets$RA2[(i-125):i])
+    #RA2过去126天最低收盘价
+    LC_126_RA2<-min(all_assets$RA2[(i-125):i])
+    
+    #填入RA2的price channel表
+    price_channel['UC_126','RA2']<-UC_126_RA2
+    price_channel['UC_252','RA2']<-UC_252_RA2
+    price_channel['LC_126','RA2']<-LC_126_RA2
+    price_channel['LC_252','RA2']<-LC_252_RA2
+    price_channel['close','RA2']<-all_assets$RA2[i]
+    
+    #RA3过去252天最高收盘价
+    UC_252_RA3<-max(all_assets$RA3[(i-251):i])
+    #RA2过去252天最低收盘价
+    LC_252_RA3<-min(all_assets$RA3[(i-251):i])
+    #RA2过去126天最高收盘价
+    UC_126_RA3<-max(all_assets$RA3[(i-125):i])
+    #RA2过去126天最低收盘价
+    LC_126_RA3<-min(all_assets$RA3[(i-125):i])
+    
+    #填入RA3的price channel表
+    price_channel['UC_126','RA3']<-UC_126_RA3
+    price_channel['UC_252','RA3']<-UC_252_RA3
+    price_channel['LC_126','RA3']<-LC_126_RA3
+    price_channel['LC_252','RA3']<-LC_252_RA3
+    price_channel['close','RA3']<-all_assets$RA3[i]
+    
+    
+    
+    #对于第一组
+    if(price_channel['close','RA1']>= price_channel['UC_126','RA1']){
+      asset_weight[(i-250),'RA1'] = 1/3
+      asset_weight[(i-250),'DA1'] = 0
+    } else if(price_channel['close','RA1']<= price_channel['LC_252','RA1']){
+      asset_weight[(i-250),'DA1'] = 1/3
+      asset_weight[(i-250),'RA1'] = 0
+    } else{
+      asset_weight[(i-250),'RA1'] = asset_weight[(i-251),'RA1']
+      asset_weight[(i-250),'DA1'] = asset_weight[(i-251),'DA1']
+    }
+    
+    
+    
+    #对于第二组
+    if(price_channel['close','RA2']>= price_channel['UC_252','RA2']){
+      asset_weight[(i-250),'RA2'] = 1/3
+      asset_weight[(i-250),'DA2'] = 0
+    } else if(price_channel['close','RA2']<= price_channel['LC_126','RA2']){
+      asset_weight[(i-250),'DA2'] = 1/3
+      asset_weight[(i-250),'RA2'] = 0
+    } else{
+      asset_weight[(i-250),'RA2'] = asset_weight[(i-251),'RA2']
+      asset_weight[(i-250),'DA2'] = asset_weight[(i-251),'DA2']
+    }
+    
+    #对于第三组
+    if(price_channel['close','RA3']>= price_channel['UC_126','RA3']){
+      asset_weight[(i-250),'RA3'] = 1/3
+      asset_weight[(i-250),'DA3'] = 0
+    } else if(price_channel['close','RA3']<= price_channel['LC_252','RA3']){
+      asset_weight[(i-250),'DA3'] = 1/3
+      asset_weight[(i-250),'RA3'] = 0
+    }  else{
+      asset_weight[(i-250),'RA3'] = asset_weight[(i-251),'RA3']
+      asset_weight[(i-250),'DA3'] = asset_weight[(i-251),'DA3']
+    }
+    
+    asset_weight[(i-250),'DA']=asset_weight[(i-250),'DA1']+asset_weight[(i-250),'DA3']
+    
+  }
+  asset_weight<-asset_weight[,c(1,2,3,4,8,5)]
+  colnames(asset_weight)<-c("date",symbols)
+  return(asset_weight)
+}
 
 
 
-setwd("E:/asset_allocation/ACA")
 
-source("cal_ret.R")
-
+#input
+RA1<-"SPY"
+RA2<-"GLD"
+RA3<-"VNQ"
+DA1<-"IEF"
+DA2<-"TLT"
 
 start_date <- "2007-01-01"  
 end_date <- "2020-07-14"  
 
-getSymbols("SPY",from=start_date,to=end_date)  # S&P 500
-getSymbols("GLD",from=start_date,to=end_date)  # gold
-getSymbols("VNQ",from=start_date,to=end_date)  # US real estate
-getSymbols("IEF",from=start_date,to=end_date)  #  intermediate-term US Treasuries
-getSymbols("TLT",from=start_date,to=end_date)  # long-term US Treasuries
+#download financial data
+symbols<-c(RA1,RA2,RA3,DA1,DA2)
 
-asset_price <- list(SPY, GLD, VNQ, IEF, TLT)
-asset_price <- lapply(asset_price, Cl)
-asset_price <- as.data.frame(asset_price)
-asset_price <- cbind(date=as.Date(rownames(asset_price)),asset_price)
-asset_price <- as.data.frame(asset_price)
-#asset_price<-xts(asset_price[,-1], ymd(asset_price[,1])) #xts
-#t<-1:length(asset_price[,4])
-rownames(asset_price)<-1:length(asset_price[,4])
+getSymbols(symbols, from=start_date,to=end_date)
 
-#install.packages("esquisse")
-#esquisse::esquisser()
+all_assets<-list()
+for(i in 1:length(symbols)) {
+  all_assets[[i]] <- Cl(get(symbols[i]))  
+}
+all_assets <- do.call(cbind, all_assets) #xts
+colnames(all_assets)<-symbols
 
-ggplot(asset_price) +
-  aes(x = date, y = SPY.Close) +
-  geom_line(size = 1L, colour = "#0c4c8a") +
-  theme_minimal()
-
-
-price_channel <- data.frame(SPY = matrix(NA,5,1),GLD = matrix(NA,5,1),VNQ = matrix(NA,5,1),row.names = c("UC_126","UC_252","LC_126","LC_252","close"))
-
-#做一个放weights的表
-#列名是数字，第一列是日期
-l<-length(asset_price[,4])-250
-asset_weight <- data.frame(date=asset_price$date[251:length(asset_price[,4])],SPY = matrix(NA,l,1),GLD = matrix(NA,l,1),VNQ = matrix(NA,l,1),TLT = matrix(NA,l,1),IEF_SPY = matrix(NA,l,1),IEF_VNQ = matrix(NA,l,1),IEF= matrix(NA,l,1), row.names =251:length(asset_price[,4]) )
-
-
-##列名是日期，第一列是数字
-#l<-length(asset_price[,4])-252
-#asset_weight <- data.frame(t=251:length(asset_price[,4]),SPY = matrix(NA,l,1),GLD = matrix(NA,l,1),VNQ = matrix(NA,l,1),IEF = matrix(NA,l,1),TLT = matrix(NA,l,1),row.names = asset_price$date[251:length(asset_price[,4])])
-
-asset_weight[1,'SPY'] = 1/3
-asset_weight[1,'GLD'] = 1/3
-asset_weight[1,'VNQ'] = 1/3
-asset_weight[1,'IEF_SPY'] = 0
-asset_weight[1,'IEF_VNQ'] = 0
-asset_weight[1,'TLT'] = 0
-asset_weight[1,'IEF']=0
-
-for(i in 252:length(asset_price[,4])){
-  #max(asset_price$SPY.Close[1:252])
-  #max(asset_price$SPY.Close[127:252])
-  
-  #i=252
-  #SPY过去252天最高收盘价
-  UC_252_SPY<-max(asset_price$SPY.Close[(i-251):i])
-  #SPY过去252天最低收盘价
-  LC_252_SPY<-min(asset_price$SPY.Close[(i-251):i])
-  #SPY过去126天最高收盘价
-  UC_126_SPY<-max(asset_price$SPY.Close[(i-125):i])
-  #SPY过去126天最低收盘价
-  LC_126_SPY<-min(asset_price$SPY.Close[(i-125):i])
-  
-  #填入SPY的price channel表
-  price_channel['UC_126','SPY']<-UC_126_SPY
-  price_channel['UC_252','SPY']<-UC_252_SPY
-  price_channel['LC_126','SPY']<-LC_126_SPY
-  price_channel['LC_252','SPY']<-LC_252_SPY
-  price_channel['close','SPY']<-asset_price$SPY.Close[i]
-  
-  #GLD过去252天最高收盘价
-  UC_252_GLD<-max(asset_price$GLD.Close[(i-251):i])
-  #GLD过去252天最低收盘价
-  LC_252_GLD<-min(asset_price$GLD.Close[(i-251):i])
-  #GLD过去126天最高收盘价
-  UC_126_GLD<-max(asset_price$GLD.Close[(i-125):i])
-  #GLD过去126天最低收盘价
-  LC_126_GLD<-min(asset_price$GLD.Close[(i-125):i])
-  
-  #填入GLD的price channel表
-  price_channel['UC_126','GLD']<-UC_126_GLD
-  price_channel['UC_252','GLD']<-UC_252_GLD
-  price_channel['LC_126','GLD']<-LC_126_GLD
-  price_channel['LC_252','GLD']<-LC_252_GLD
-  price_channel['close','GLD']<-asset_price$GLD.Close[i]
-  
-  #VNQ过去252天最高收盘价
-  UC_252_VNQ<-max(asset_price$VNQ.Close[(i-251):i])
-  #GLD过去252天最低收盘价
-  LC_252_VNQ<-min(asset_price$VNQ.Close[(i-251):i])
-  #GLD过去126天最高收盘价
-  UC_126_VNQ<-max(asset_price$VNQ.Close[(i-125):i])
-  #GLD过去126天最低收盘价
-  LC_126_VNQ<-min(asset_price$VNQ.Close[(i-125):i])
-  
-  #填入VNQ的price channel表
-  price_channel['UC_126','VNQ']<-UC_126_VNQ
-  price_channel['UC_252','VNQ']<-UC_252_VNQ
-  price_channel['LC_126','VNQ']<-LC_126_VNQ
-  price_channel['LC_252','VNQ']<-LC_252_VNQ
-  price_channel['close','VNQ']<-asset_price$VNQ.Close[i]
-  
- 
-  
-  #对于第一组
-  if(price_channel['close','SPY']>= price_channel['UC_126','SPY']){
-    asset_weight[(i-250),'SPY'] = 1/3
-    asset_weight[(i-250),'IEF_SPY'] = 0
-  } else if(price_channel['close','SPY']<= price_channel['LC_252','SPY']){
-    asset_weight[(i-250),'IEF_SPY'] = 1/3
-    asset_weight[(i-250),'SPY'] = 0
-  } else{
-    asset_weight[(i-250),'SPY'] = asset_weight[(i-251),'SPY']
-    asset_weight[(i-250),'IEF_SPY'] = asset_weight[(i-251),'IEF_SPY']
-  }
-  
-  
-  
-  #对于第二组
-  if(price_channel['close','GLD']>= price_channel['UC_252','GLD']){
-    asset_weight[(i-250),'GLD'] = 1/3
-    asset_weight[(i-250),'TLT'] = 0
-  } else if(price_channel['close','GLD']<= price_channel['LC_126','GLD']){
-    asset_weight[(i-250),'TLT'] = 1/3
-    asset_weight[(i-250),'GLD'] = 0
-  } else{
-    asset_weight[(i-250),'GLD'] = asset_weight[(i-251),'GLD']
-    asset_weight[(i-250),'TLT'] = asset_weight[(i-251),'TLT']
-  }
-  
-  #对于第三组
-  if(price_channel['close','VNQ']>= price_channel['UC_126','VNQ']){
-    asset_weight[(i-250),'VNQ'] = 1/3
-    asset_weight[(i-250),'IEF_VNQ'] = 0
-  } else if(price_channel['close','VNQ']<= price_channel['LC_252','VNQ']){
-    asset_weight[(i-250),'IEF_VNQ'] = 1/3
-    asset_weight[(i-250),'VNQ'] = 0
-  }  else{
-    asset_weight[(i-250),'VNQ'] = asset_weight[(i-251),'VNQ']
-    asset_weight[(i-250),'IEF_VNQ'] = asset_weight[(i-251),'IEF_VNQ']
-  }
-  
-  asset_weight[(i-250),'IEF']=asset_weight[(i-250),'IEF_SPY']+asset_weight[(i-250),'IEF_VNQ']
-  
+Returns<-function(all_assets){    
+  Returns <- do.call(merge.xts,lapply(colnames(all_assets),function(x){ 
+    ret = periodReturn(all_assets[,x],period = "daily");
+    colnames(ret) = x;
+    return(ret) 
+  } ))
+  Returns<-as.data.frame(Returns)
+  Returns<- cbind(date=as.Date(rownames(Returns)),Returns)
 }
 
-#计算收益
-asset_price<-xts(asset_price[,-1], ymd(asset_price[,1])) #xts
-SPY.ret<-periodReturn(asset_price$SPY.Close[251:length(asset_price[,4])],period="daily")
-GLD.ret<-periodReturn(asset_price$GLD.Close[251:length(asset_price[,4])],period="daily")
-VNQ.ret<-periodReturn(asset_price$VNQ.Close[251:length(asset_price[,4])],period="daily")
-IEF.ret<-periodReturn(asset_price$IEF.Close[251:length(asset_price[,4])],period="daily")
-TLT.ret<-periodReturn(asset_price$TLT.Close[251:length(asset_price[,4])],period="daily")
-
-returns<-data.frame(list(SPY.ret,  GLD.ret,VNQ.ret,  TLT.ret, IEF.ret))
-colnames(returns) <- c("SPY",  "GLD","VNQ",  "TLT","IEF")
+Returns<-Returns(all_assets)
+Strategy<-ACA(all_assets)
 
 #write.csv(returns,"E:\\asset_allocation\\ACA\\assets_returns.csv", row.names = TRUE)
 #write.csv(asset_weight,"E:\\asset_allocation\\ACA\\assets_weights.csv", row.names = FALSE)
-
