@@ -42,9 +42,7 @@ symbols<-c("H00909.CSI",  #沪深300材料
          "H00905.CSI",  #中证500
          "399606.SZ",   #创业板
          "H00140.SH",   #国债指数
-         "518800.SH",    #黄金ETF
-         "N11077.SH",      #十年国债
-         "N00140.SH"       #五年国债
+         "518800.SH"   #黄金ETF
          )   
 wdata<-as.data.frame(w.wsd(symbols,'close',begintime,endtime))
 
@@ -60,10 +58,12 @@ colnames(wdata)<-symbols
 
 ```{r echo=FALSE}
 returns_data<-na.omit(ROC(wdata)) 
+bench_data<-returns_data$H00140.SH
+returns_data<-subset(returns_data,select=-c(H00140.SH))
 ```
 
 ```{r echo=FALSE}
-colnames(returns_data)<-symbols
+colnames(returns_data)<-c("材料","工业","可选","消费","医药","金融","信息","沪深300","中证500","创业板","黄金")
 returns_data<-as.xts(returns_data)
 ```
 
@@ -77,7 +77,7 @@ weights_data<-as.numeric(weights_data)
 
 ```{r echo=FALSE}
 
-benchmark.ret<-cbind(returns_data$H00300.CSI, returns_data$H00140.SH)
+benchmark.ret<-cbind(returns_data$沪深300, bench_data)
 benchmark.portf<-portf.sixty_fourty(benchmark.ret, rebalance_on="months", verbose=T)
 
 bench.ret<-benchmark.portf$returns
