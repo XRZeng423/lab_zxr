@@ -1,0 +1,298 @@
+
+---
+title: "HRP Performance Report"
+author: "Xuran ZENG"
+date: "2020/12/17"
+output: 
+  html_document: 
+    toc: yes
+    toc_float: true 
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r echo=FALSE}
+library(xts)
+library(PerformanceAnalytics)
+library(lubridate)
+library(quantmod)
+library(TTR)
+
+source("C:/Users/carol/Desktop/asset_allocation/cal_ret.R")
+source("C:/Users/carol/Desktop/asset_allocation/models.R")
+```
+
+```{r results="hide"}
+library(WindR)
+w.start()
+begintime<-"2013-07-29"  
+endtime<-Sys.time()
+
+symbols<-c("H00909.CSI",  #沪深300材料
+         "H00910.CSI",  #沪深300工业
+         "H00911.CSI",  #沪深300可选
+         "H00912.CSI",  #沪深300消费
+         "H00913.CSI",  #沪深300医药
+         "H00914.CSI",  #沪深300金融
+         "H00915.CSI",  #沪深300信息
+         "H00300.CSI",  #沪深300
+         "H00905.CSI",  #中证500
+         "399606.SZ",   #创业板
+         "H00140.SH",   #国债指数
+         "518800.SH",    #黄金ETF
+         "N11077.SH",      #十年国债
+         "N00140.SH"       #五年国债
+         )   
+wdata<-as.data.frame(w.wsd(symbols,'close',begintime,endtime))
+
+```
+
+```{r echo=FALSE}
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+
+colnames(wdata)<-symbols
+```
+
+```{r echo=FALSE}
+returns_data<-na.omit(ROC(wdata)) 
+```
+
+```{r echo=FALSE}
+colnames(returns_data)<-symbols
+returns_data<-as.xts(returns_data)
+```
+
+```{r echo=FALSE}
+weights_data<-read.csv("C:/Users/carol/Desktop/asset_allocation/HRP/weights.csv") ## read in weights data 
+weights_data<-as.numeric(weights_data)
+
+
+
+```
+
+```{r echo=FALSE}
+
+benchmark.ret<-cbind(returns_data$H00300.CSI, returns_data$H00140.SH)
+benchmark.portf<-portf.sixty_fourty(benchmark.ret, rebalance_on="months", verbose=T)
+
+bench.ret<-benchmark.portf$returns
+colnames(bench.ret)<-"Benchmark"
+
+equal_weights<-rep(1/ncol(returns_data),ncol(returns_data)) 
+equal.ret<-Return.portfolio(returns_data,weights = equal_weights,rebalance_on = "months")
+colnames(equal.ret)<-"equal"
+
+portf <- Return.portfolio(returns_data,weights_data, rebalance_on="months", verbose=T)
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret, equal.ret)
+
+colnames<-c("Strategy","Benchmark", "Equal")
+```
+
+
+## Data from 2013-07-31 to today (full sample)
+```{r echo=FALSE}
+date1 <- '2013-07-31'
+date2 <- Sys.Date()
+full_sample<-paste(date1,date2,sep = "/")
+
+
+ret.full_sample<-ret[full_sample,]
+
+```
+
+
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(ret.full_sample)
+```
+
+```{r echo=FALSE}
+charts.PerformanceSummary(ret.full_sample, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(ret.full_sample, colnames)
+cal_annual_ret
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value[full_sample], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## Data from 2015-01-01 to 2020-01-01
+```{r echo=FALSE}
+
+five_years<-'2015-01-01/2020-01-01'
+
+ret.five_years<-ret[five_years,]
+
+```
+
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(ret.five_years)
+```
+
+```{r echo=FALSE}
+charts.PerformanceSummary(ret.five_years, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(ret.five_years, colnames)
+cal_annual_ret
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value[five_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## Data from 2017-01-01 to 2020-01-01
+```{r echo=FALSE}
+
+three_years<-'2017-01-01/2020-01-01'
+
+ret.three_years<-ret[three_years,]
+
+```
+
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(ret.three_years)
+```
+
+```{r echo=FALSE}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(ret.three_years, colnames)
+cal_annual_ret
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+
+
+## Data from 2019-01-01 to 2020-01-01
+```{r echo=FALSE}
+
+one_year<-'2019-01-01/2020-01-01'
+
+ret.one_year<-ret[one_year,]
+
+```
+
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(ret.one_year)
+```
+
+```{r echo=FALSE}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(ret.one_year, colnames)
+cal_annual_ret
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value[one_year], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+
+## Data from 2019-06-30 to 2020-01-01
+```{r echo=FALSE}
+
+six_months<-'2019-06-30/2020-01-01'
+
+ret.six_months<-ret[six_months,]
+
+```
+
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(ret.six_months)
+```
+
+```{r echo=FALSE}
+charts.PerformanceSummary(ret.six_months, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(ret.six_months, colnames)
+cal_annual_ret
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value[six_months], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## Year to Date
+```{r echo=FALSE}
+date1 <- '2020-01-01'
+date2 <- Sys.Date()
+ytd<-paste(date1,date2,sep = "/")
+
+ret.ytd<-ret[ytd,]
+```
+
+### Performance Summary
+```{r echo=FALSE}
+tab.perf(ret.ytd)
+```
+
+```{r echo=FALSE}
+charts.PerformanceSummary(ret.ytd, date.format="%Y%m")
+```
+
+### Portfolio Calendar Year Returns
+```{r echo=FALSE}
+
+cal_annual_ret<-gen_cal_annual_ret(ret.ytd, colnames)
+cal_annual_ret
+#grid.newpage()
+#grid.table(cal_annual_ret)
+```
+
+### Portfolio Weights over time
+```{r echo=FALSE}
+chart.StackedBar(portf$BOP.Value[ytd], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
