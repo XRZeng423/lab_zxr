@@ -1,12 +1,22 @@
 
 
-GPM<-function(all_assets,N, P){
-  #ÊäÈëxts¸ñÊ½µÄÈÕÊÕÒæĞòÁĞ
-  #Êä³ö¸÷×Ê²úÈ¨ÖØ
-  all_assets<-wdata
+GPM<-function(asset_price,N, P){
+  
+  symbols<-c("SPY",  "QQQ",  "IWM", "VGK","EWJ","EEM","VNQ","DBC",  "GLD",  "LQD", "HYG","TLT","IEF","SHV") 
+  Risky<-c("SPY",  "QQQ",  "IWM", "VGK","EWJ","EEM","VNQ","DBC",  "GLD",  "LQD", "HYG") 
+  cp<-c("TLT","IEF","SHV") 
+  
+  colnames(assets_price)<-symbols
+  asset_price<-as.xts(assets_price)
+  
+  
+  
+  #è¾“å…¥xtsæ ¼å¼çš„æ—¥æ”¶ç›Šåºåˆ—
+  #è¾“å‡ºå„èµ„äº§æƒé‡
+  #all_assets<-wdata
   #split into two part: Rrisky and Rcp
-  Rrisky_price_data<- subset(all_assets, select = Risky)
-  Rcp_price_data<-subset(all_assets, select = cp)
+  Rrisky_price_data<- subset(asset_price, select = Risky)
+  Rcp_price_data<-subset(asset_price, select = cp)
   
   #calculate ri 
   #output: Risky.ret(xts)
@@ -117,15 +127,15 @@ Returns<-function(all_assets){
 
 GTAA<-function(assets_price,N){
   
-  #ÊäÈë£º¸÷×Ê²úÈÕÊÕÅÌ¼Ûdataframe£¬Ñ¡È¡×Ê²ú¸öÊıN
-  #Êä³ö£º¸÷×Ê²úÈ¨ÖØ
+  #è¾“å…¥ï¼šå„èµ„äº§æ—¥æ”¶ç›˜ä»·dataframeï¼Œé€‰å–èµ„äº§ä¸ªæ•°N
+  #è¾“å‡ºï¼šå„èµ„äº§æƒé‡
   
   asset<-c("IWD", "MTUM", "IWN", "IWM", "EFA", "EEM", "IEF", "BWX", "LQD",  "TLT",  "DBC", "GLD","VNQ","SHV")
   
   colnames(assets_price)<-asset
   asset_price<-as.xts(assets_price)
   
-  #Ã¿¸öÔÂ×îºóÒ»¸ö½»Ò×ÈÕ¼ÆËã13¸ö×Ê²úµÄ¹ıÈ¥1¡¢3¡¢6¡¢12¸öÔÂµÄÊÕÒæ£¨R1, R3, R6, R12£©
+  #æ¯ä¸ªæœˆæœ€åä¸€ä¸ªäº¤æ˜“æ—¥è®¡ç®—13ä¸ªèµ„äº§çš„è¿‡å»1ã€3ã€6ã€12ä¸ªæœˆçš„æ”¶ç›Šï¼ˆR1, R3, R6, R12ï¼‰
   R1<-monthly.return(asset_price)
   R1<-as.data.frame(R1)
   R3<-lapply(R1, function(x) runSum(x, n = 3, cumulative = FALSE))
@@ -135,12 +145,12 @@ GTAA<-function(assets_price,N){
   R12<-lapply(R1, function(x) runSum(x, n = 12, cumulative = FALSE))
   R12<-as.data.frame(R12)
   
-  #¶ÔÃ¿¸ö×Ê²ú¼ÆËã£¨R1, R3, R6, R12£©µÄÆ½¾ùÖµ
+  #å¯¹æ¯ä¸ªèµ„äº§è®¡ç®—ï¼ˆR1, R3, R6, R12ï¼‰çš„å¹³å‡å€¼
   R_ave<-(R1+R3+R6+R12)/4
   R_ave<-na.omit(R_ave)
   
-  #¶ÔÃ¿¸ö×Ê²ú¼ÆËã¹ıÈ¥10¸öÔÂÒÆ¶¯Æ½¾ù
-  MA200_prices<-filter(asset_price/200, rep(1, 200))
+  #å¯¹æ¯ä¸ªèµ„äº§è®¡ç®—è¿‡å»10ä¸ªæœˆç§»åŠ¨å¹³å‡
+  MA200_prices<-filter(asset_price/252, rep(1, 252))
   colnames(MA200_prices)<-asset
   MA200_prices<-as.data.frame(MA200_prices)
   MA200_prices<- cbind(date=as.Date(rownames(as.data.frame(asset_price))),MA200_prices)
@@ -162,7 +172,7 @@ GTAA<-function(assets_price,N){
   
   
   
-  #³ÖÓĞÆ½¾ùÖµ×î¸ßµÄ3»ò6¸ö×Ê²ú
+  #æŒæœ‰å¹³å‡å€¼æœ€é«˜çš„3æˆ–6ä¸ªèµ„äº§
   
   selected<-data.frame(date=last_trading_dates,matrix(numeric(0),n.mos,ncol=N))
   for (i in 1:n.mos){
@@ -170,13 +180,13 @@ GTAA<-function(assets_price,N){
   }
   
   
-  # Ñ¡ÔñÊÕÅÌ¼Û¸ßÓÚMA(200)µÄ×Ê²ú£¬×öÒ»¸öµ÷Õû±í£¬ĞèÒªµ÷ÕûµÄµØ·½ÊÇfalse·ñÔòÊÇtrue
+  # é€‰æ‹©æ”¶ç›˜ä»·é«˜äºMA(200)çš„èµ„äº§ï¼Œåšä¸€ä¸ªè°ƒæ•´è¡¨ï¼Œéœ€è¦è°ƒæ•´çš„åœ°æ–¹æ˜¯falseå¦åˆ™æ˜¯true
   selected.adjust<-selected[1:length(MA200_prices[,1]),]
   for (i in 1:length(MA200_prices[,1])){
     selected.adjust[i,2:(N+1)] <- as.numeric(asset_price[i,as.character(selected.adjust[i,2:(N+1)])])>=as.numeric(MA200_prices[i,as.character(selected.adjust[i,2:(N+1)])])
   }
   
-  #×öÒ»¸öÈ¨ÖØ±í
+  #åšä¸€ä¸ªæƒé‡è¡¨
   weights <- R_ave
   weights[,]<-NA
   weights<-cbind(selected,weights)
@@ -188,7 +198,7 @@ GTAA<-function(assets_price,N){
       weights[i,weights[i,j]]<-1/N
     }}
   
-  #¶ÔÓÚÊÕÅÌ¼ÛµÍÓÚMAµÄ×Ê²ú£¬È¨ÖØÎª0£¬Ôö¼ÓSHVµÄÈ¨ÖØ
+  #å¯¹äºæ”¶ç›˜ä»·ä½äºMAçš„èµ„äº§ï¼Œæƒé‡ä¸º0ï¼Œå¢åŠ SHVçš„æƒé‡
   selected.adjust$n <- rowSums(selected.adjust==FALSE)
   weights[,"SHV"]<-selected.adjust$n*(1/N)
   
@@ -212,15 +222,15 @@ GTAA<-function(assets_price,N){
 }
 
 ADM<-function(assets_price){
-  #ÊäÈë£º¸÷×Ê²úÈÕÊÕÅÌ¼Ûdataframe
-  #Êä³ö£º¸÷×Ê²úÈ¨ÖØ
+  #è¾“å…¥ï¼šå„èµ„äº§æ—¥æ”¶ç›˜ä»·dataframe
+  #è¾“å‡ºï¼šå„èµ„äº§æƒé‡
   
   symbols<-c("SPY","SCZ","TLT","TIP") 
   colnames(assets_price)<-symbols
   
   
   
-  #Ã¿¸öÔÂ×îºóÒ»¸ö½»Ò×ÈÕ¼ÆËãSPYºÍSCZµÄ¶¯Á¿µÃ·Ö£¬¶¯Á¿µÃ·ÖÎª¹ıÈ¥1 3 6¸öÔÂµÄÊÕÒæµÄÆ½¾ùÖµ
+  #æ¯ä¸ªæœˆæœ€åä¸€ä¸ªäº¤æ˜“æ—¥è®¡ç®—SPYå’ŒSCZçš„åŠ¨é‡å¾—åˆ†ï¼ŒåŠ¨é‡å¾—åˆ†ä¸ºè¿‡å»1 3 6ä¸ªæœˆçš„æ”¶ç›Šçš„å¹³å‡å€¼
   R1<-monthly.return(as.xts(assets_price[,c("SPY","SCZ")]))
   R1<-as.data.frame(R1)
   R3<-lapply(R1, function(x) runSum(x, n = 3, cumulative = FALSE))
@@ -233,22 +243,22 @@ ADM<-function(assets_price){
   
   #C1: MOM(SPY)>MOM(SCZ)>0
   #C2: MOM(SCZ)>MOM(SPY)>0
-  #C3: Á½¸öÌõ¼ş¶¼²»Âú×ã
+  #C3: ä¸¤ä¸ªæ¡ä»¶éƒ½ä¸æ»¡è¶³
   for (i in 1:length(MOM[,1])){
     MOM[i,'C1']<-MOM[i,'SPY']>MOM[i,'SCZ'] & MOM[i,'SCZ']>0
     MOM[i,'C2']<-MOM[i,'SCZ']>MOM[i,'SPY'] & MOM[i,'SPY']>0
     MOM[i,'C3']<-rowSums(MOM[i,c("C1","C2")]==FALSE)==2
   }
   
-  #×öÒ»¸öÈ¨ÖØ±í
+  #åšä¸€ä¸ªæƒé‡è¡¨
   weights <- MOM
   weights[,symbols]<-NA
   
-  #Âú×ãC1Ìõ¼şµÄSPYÈ¨ÖØÎª1£¬Âú×ãC2Ìõ¼şµÄSCZÈ¨ÖØÎª1
+  #æ»¡è¶³C1æ¡ä»¶çš„SPYæƒé‡ä¸º1ï¼Œæ»¡è¶³C2æ¡ä»¶çš„SCZæƒé‡ä¸º1
   weights[which(weights[,'C1']==TRUE),'SPY']<-1
   weights[which(weights[,'C2']==TRUE),'SCZ']<-1
   
-  #Âú×ãC3Ìõ¼şµÄ£¬ÔÚTLTºÍTIPÖĞÑ¡Ôñ¹ıÈ¥Ò»¸öÔÂÔÂÊÕÒæ¸ßµÄ×Ê²ú£¬È¨ÖØÎª1
+  #æ»¡è¶³C3æ¡ä»¶çš„ï¼Œåœ¨TLTå’ŒTIPä¸­é€‰æ‹©è¿‡å»ä¸€ä¸ªæœˆæœˆæ”¶ç›Šé«˜çš„èµ„äº§ï¼Œæƒé‡ä¸º1
   RB<-monthly.return(as.xts(assets_price[,c("TLT","TIP")]))
   RB<-RB[as.Date(rownames(MOM)),]
   colnames(RB)<-c("TLT.ret","TIP.ret")
@@ -288,17 +298,17 @@ RAA.Aggressive <- function(ret,...){
 }
 
 TDM<-function(assets_price){
-  #ÊäÈë£º¸÷×Ê²úÈÕÊÕÅÌ¼Ûdataframe
-  #Êä³ö£º¸÷×Ê²úÈ¨ÖØ
+  #è¾“å…¥ï¼šå„èµ„äº§æ—¥æ”¶ç›˜ä»·dataframe
+  #è¾“å‡ºï¼šå„èµ„äº§æƒé‡
   symbols<-c("SPY","VEU","BND","BIL")  
   
   colnames(assets_price)<-symbols
   assets_price<-as.xts(assets_price)
   
   
-  #Ã¿¸öÔÂ×îºóÒ»¸ö½»Ò×ÈÕ¼ÆËãSPYºÍSCZµÄ¶¯Á¿µÃ·Ö£¬¶¯Á¿µÃ·ÖÎª¹ı12¸öÔÂµÄÊÕÒæµÄÆ½¾ùÖµ
+  #æ¯ä¸ªæœˆæœ€åä¸€ä¸ªäº¤æ˜“æ—¥è®¡ç®—SPYå’ŒSCZçš„åŠ¨é‡å¾—åˆ†ï¼ŒåŠ¨é‡å¾—åˆ†ä¸ºè¿‡12ä¸ªæœˆçš„æ”¶ç›Šçš„å¹³å‡å€¼
   R1<-monthly.return(assets_price)
-  R12<-lapply(R1, function(x) runSum(x, n = 12, cumulative = FALSE)) #NÎª¹ıÈ¥N¸öÔÂÊÕÒæ
+  R12<-lapply(R1, function(x) runSum(x, n = 12, cumulative = FALSE)) #Nä¸ºè¿‡å»Nä¸ªæœˆæ”¶ç›Š
   R12<-as.data.frame(R12)
   R12<-na.omit(R12)
   
@@ -312,13 +322,13 @@ TDM<-function(assets_price){
     
   }
   
-  #×öÒ»¸öÈ¨ÖØ±í
+  #åšä¸€ä¸ªæƒé‡è¡¨
   weights <- R12
   weights[,symbols]<-NA
   
-  #C1ºÍC2¶¼ÎªTRUE£¬¼´SPY>VEUÇÒSPY>BIL,ÔòÈ«²¿ÅäÖÃSPY
-  #C1ÎªFALSEÇÒC3ÎªTRUE£¬¼´VEU>SPYÇÒVEU>BIL,ÔòÈ«²¿ÅäÖÃVEU
-  #C2ºÍC3¶¼ÎªFALSE£¬¼´BIL>VEUÇÒBIL>SPY£¬ÔòÈ«²¿ÅäÖÃBND
+  #C1å’ŒC2éƒ½ä¸ºTRUEï¼Œå³SPY>VEUä¸”SPY>BIL,åˆ™å…¨éƒ¨é…ç½®SPY
+  #C1ä¸ºFALSEä¸”C3ä¸ºTRUEï¼Œå³VEU>SPYä¸”VEU>BIL,åˆ™å…¨éƒ¨é…ç½®VEU
+  #C2å’ŒC3éƒ½ä¸ºFALSEï¼Œå³BIL>VEUä¸”BIL>SPYï¼Œåˆ™å…¨éƒ¨é…ç½®BND
   weights[which(weights[,'C1']==TRUE & weights[,'C2']==TRUE),'SPY']<-1
   weights[which(weights[,'C1']==FALSE & weights[,'C3']==TRUE),'VEU']<-1
   weights[which(weights[,'C2']==FALSE & weights[,'C3']==FALSE),'BND']<-1
@@ -409,24 +419,24 @@ VAA<-function(asset_price){
   
   
   
-  #È·¶¨ÄÄĞ©Ê±ºòÑ¡offensiveÄÄĞ©Ê±ºòÑ¡defensive
+  #ç¡®å®šå“ªäº›æ—¶å€™é€‰offensiveå“ªäº›æ—¶å€™é€‰defensive
   MOM$select<-"Defensive"
   MOM[which(MOM$n.offensive==4),'select'] <- "Offensive"
   
   
   
-  #If 4¸öoffensiveµÄMOM¶¼´óÓÚÁã£¬ÔòÑ¡È¡offensiveÖĞMOM×î´óµÄ£¬È¨ÖØÎª1
+  #If 4ä¸ªoffensiveçš„MOMéƒ½å¤§äºé›¶ï¼Œåˆ™é€‰å–offensiveä¸­MOMæœ€å¤§çš„ï¼Œæƒé‡ä¸º1
   MOM$asset<-NA
   for (i in which(MOM$select=="Offensive")){
     MOM[i,'asset'] <-colnames(MOM[which.max(MOM[i,offensive])])
   }
   
-  #If ÈÎºÎÒ»¸öoffensiveµÄMOMĞ¡ÓÚÁã£¬ÔòÑ¡È¡defensiveÖĞMOM×î´óµÄ£¬È¨ÖØÎª1
+  #If ä»»ä½•ä¸€ä¸ªoffensiveçš„MOMå°äºé›¶ï¼Œåˆ™é€‰å–defensiveä¸­MOMæœ€å¤§çš„ï¼Œæƒé‡ä¸º1
   for (i in which(MOM$select=="Defensive")){
     MOM[i,'asset'] <- colnames(MOM[(which.max(MOM[i,defensive])+4)])
   }
   
-  #×öÒ»¸öÈ¨ÖØ±í
+  #åšä¸€ä¸ªæƒé‡è¡¨
   weights <- data.frame(date=as.Date(rownames(MOM)),asset=MOM$asset,SPY = matrix("SPY",length(MOM[,1]),1),EFA = matrix("EFA",length(MOM[,1]),1),EEM = matrix("EEM",length(MOM[,1]),1),AGG = matrix("AGG",length(MOM[,1]),1),LQD = matrix("LQD",length(MOM[,1]),1),IEF = matrix("IEF",length(MOM[,1]),1),SHY = matrix("SHY",length(MOM[,1]),1))
   
   for (i in 1:length(weights[,1])){
@@ -454,55 +464,55 @@ TBS<-function(assets_price){
   
   colnames(assets_price)<-symbols
   assets_price<-as.xts(assets_price)
-  #Ã¿¸öÔÂ×îºóÒ»¸ö½»Ò×ÈÕ¼ÆËã¸÷¸ö×Ê²úµÄ6¸öÔÂµÄÊÕÒæ
+  #æ¯ä¸ªæœˆæœ€åä¸€ä¸ªäº¤æ˜“æ—¥è®¡ç®—å„ä¸ªèµ„äº§çš„6ä¸ªæœˆçš„æ”¶ç›Š
   R1<-monthly.return(assets_price)
   R6<-lapply(R1, function(x) runSum(x, n = 6, cumulative = FALSE))
   R6<-as.data.frame(R6)
   R6<-na.omit(R6)
   
-  #Ñ¡È¡6¸öÔÂÊÕÒæ×î¸ßµÄ3¸ö×Ê²ú
+  #é€‰å–6ä¸ªæœˆæ”¶ç›Šæœ€é«˜çš„3ä¸ªèµ„äº§
   for (i in 1:length(R6[,1])){
     R6[i,10:12]<-colnames(sort(R6[i,c("SHY", "IEF", "TLT","TIP", "LQD", "HYG", "BNDX", "EMB") ],decreasing = TRUE)[1:3])
   }
   
-  #¼ÆËãËùÑ¡3¸ö×Ê²úÊÕÒæÎªÕıµÄ¸öÊın
+  #è®¡ç®—æ‰€é€‰3ä¸ªèµ„äº§æ”¶ç›Šä¸ºæ­£çš„ä¸ªæ•°n
   for (i in 1:length(R6[,1])){
     R6[i,'n']<-rowSums(R6[i,as.character(R6[i,10:12])]>0)
   }
   
-  #¼ÆËãËùÑ¡3¸ö×Ê²údµÄÊÕÒæ´óÓÚBILµÄÊÕÒæµÄ¸öÊıp
+  #è®¡ç®—æ‰€é€‰3ä¸ªèµ„äº§dçš„æ”¶ç›Šå¤§äºBILçš„æ”¶ç›Šçš„ä¸ªæ•°p
   for (i in 1:length(R6[,1])){
     R6[i,'p']<-rowSums(R6[i,as.character(R6[i,10:12])]>R6[i,'BIL'])
   }
   
-  #×Ê²úÊÕÒæ´óÓÚ0ÇÒ´óÓÚBILÊÕÒæ¼ÇÎªTRUE
+  #èµ„äº§æ”¶ç›Šå¤§äº0ä¸”å¤§äºBILæ”¶ç›Šè®°ä¸ºTRUE
   for (i in 1:length(R6[,1])){
     R6[i,'B1']<-R6[i,as.character(R6[i,10])]>0 & R6[i,as.character(R6[i,10])]>R6[i,'BIL']
     R6[i,'B2']<-R6[i,as.character(R6[i,11])]>0 & R6[i,as.character(R6[i,11])]>R6[i,'BIL']
     R6[i,'B3']<-R6[i,as.character(R6[i,12])]>0 & R6[i,as.character(R6[i,12])]>R6[i,'BIL']
   }
   
-  #×öÒ»¸öÈ¨ÖØ±í
+  #åšä¸€ä¸ªæƒé‡è¡¨
   weights <- R6
   weights[,symbols]<-NA
   
   
-  #Èç¹û×Ê²úÊÕÒæÎªÕı£¬¶øÇÒ´óÓÚBILµÄ6¸öÔÂÊÕÒæ£¬Ôò¸Ã×Ê²ú·ÖÅä1/3µÄÈ¨ÖØ
-  #Ò²¾ÍÊÇTRUEµÄ×Ê²ú·ÖÅä1/3µÄÈ¨ÖØ
-  #ÏÈ¸øËùÓĞÑ¡³öµÄ×Ê²ú1/3µÄÈ¨ÖØ
+  #å¦‚æœèµ„äº§æ”¶ç›Šä¸ºæ­£ï¼Œè€Œä¸”å¤§äºBILçš„6ä¸ªæœˆæ”¶ç›Šï¼Œåˆ™è¯¥èµ„äº§åˆ†é…1/3çš„æƒé‡
+  #ä¹Ÿå°±æ˜¯TRUEçš„èµ„äº§åˆ†é…1/3çš„æƒé‡
+  #å…ˆç»™æ‰€æœ‰é€‰å‡ºçš„èµ„äº§1/3çš„æƒé‡
   
   for (i in 1:length(weights[,1])){
     for (j in 10:12){
       weights[i,weights[i,j]]<-1/3
     }}
   
-  #¼ÆËãÃ¿Ò»ĞĞËùÑ¡×Ê²úÖĞFalseµÄÊıÁ¿n
+  #è®¡ç®—æ¯ä¸€è¡Œæ‰€é€‰èµ„äº§ä¸­Falseçš„æ•°é‡n
   weights$n <- rowSums(weights[,15:17]==FALSE)
   
-  #Ã¿ĞĞÏÖ½ğµÄÈ¨ÖØÎªn*(1/3)
+  #æ¯è¡Œç°é‡‘çš„æƒé‡ä¸ºn*(1/3)
   weights[,'BIL']<-weights$n*(1/3)
   
-  #½«Ã¿ĞĞFALSEµÄ×Ê²úµÄÈ¨ÖØ¼ÇÎª0
+  #å°†æ¯è¡ŒFALSEçš„èµ„äº§çš„æƒé‡è®°ä¸º0
   
   for (i in 1:length(weights[,1])){
     weights[i,as.character(weights[i,(which(weights[i,c('B1','B2','B3')]==FALSE)+9)])]<-0
@@ -613,14 +623,14 @@ ACA<-function(asset_price){
   
   price_channel <- data.frame(SPY = matrix(NA,5,1),GLD = matrix(NA,5,1),VNQ = matrix(NA,5,1),row.names = c("UC_126","UC_252","LC_126","LC_252","close"))
   
-  #×öÒ»¸ö·ÅweightsµÄ±í
-  #ÁĞÃûÊÇÊı×Ö£¬µÚÒ»ÁĞÊÇÈÕÆÚ
+  #åšä¸€ä¸ªæ”¾weightsçš„è¡¨
+  #åˆ—åæ˜¯æ•°å­—ï¼Œç¬¬ä¸€åˆ—æ˜¯æ—¥æœŸ
   l<-length(asset_price[,4])-250
   date<-rownames(assets_price)
   asset_weight <- data.frame(date=date[251:length(asset_price[,4])],SPY = matrix(NA,l,1),GLD = matrix(NA,l,1),VNQ = matrix(NA,l,1),TLT = matrix(NA,l,1),IEF_SPY = matrix(NA,l,1),IEF_VNQ = matrix(NA,l,1),IEF= matrix(NA,l,1), row.names =251:length(asset_price[,4]) )
   
   
-  ##ÁĞÃûÊÇÈÕÆÚ£¬µÚÒ»ÁĞÊÇÊı×Ö
+  ##åˆ—åæ˜¯æ—¥æœŸï¼Œç¬¬ä¸€åˆ—æ˜¯æ•°å­—
   #l<-length(asset_price[,4])-252
   #asset_weight <- data.frame(t=251:length(asset_price[,4]),SPY = matrix(NA,l,1),GLD = matrix(NA,l,1),VNQ = matrix(NA,l,1),IEF = matrix(NA,l,1),TLT = matrix(NA,l,1),row.names = asset_price$date[251:length(asset_price[,4])])
   
@@ -637,48 +647,48 @@ ACA<-function(asset_price){
     #max(asset_price$SPY[127:252])
     
     #i=252
-    #SPY¹ıÈ¥252Ìì×î¸ßÊÕÅÌ¼Û
+    #SPYè¿‡å»252å¤©æœ€é«˜æ”¶ç›˜ä»·
     UC_252_SPY<-max(asset_price$SPY[(i-251):i])
-    #SPY¹ıÈ¥252Ìì×îµÍÊÕÅÌ¼Û
+    #SPYè¿‡å»252å¤©æœ€ä½æ”¶ç›˜ä»·
     LC_252_SPY<-min(asset_price$SPY[(i-251):i])
-    #SPY¹ıÈ¥126Ìì×î¸ßÊÕÅÌ¼Û
+    #SPYè¿‡å»126å¤©æœ€é«˜æ”¶ç›˜ä»·
     UC_126_SPY<-max(asset_price$SPY[(i-125):i])
-    #SPY¹ıÈ¥126Ìì×îµÍÊÕÅÌ¼Û
+    #SPYè¿‡å»126å¤©æœ€ä½æ”¶ç›˜ä»·
     LC_126_SPY<-min(asset_price$SPY[(i-125):i])
     
-    #ÌîÈëSPYµÄprice channel±í
+    #å¡«å…¥SPYçš„price channelè¡¨
     price_channel['UC_126','SPY']<-UC_126_SPY
     price_channel['UC_252','SPY']<-UC_252_SPY
     price_channel['LC_126','SPY']<-LC_126_SPY
     price_channel['LC_252','SPY']<-LC_252_SPY
     price_channel['close','SPY']<-asset_price$SPY[i]
     
-    #GLD¹ıÈ¥252Ìì×î¸ßÊÕÅÌ¼Û
+    #GLDè¿‡å»252å¤©æœ€é«˜æ”¶ç›˜ä»·
     UC_252_GLD<-max(asset_price$GLD[(i-251):i])
-    #GLD¹ıÈ¥252Ìì×îµÍÊÕÅÌ¼Û
+    #GLDè¿‡å»252å¤©æœ€ä½æ”¶ç›˜ä»·
     LC_252_GLD<-min(asset_price$GLD[(i-251):i])
-    #GLD¹ıÈ¥126Ìì×î¸ßÊÕÅÌ¼Û
+    #GLDè¿‡å»126å¤©æœ€é«˜æ”¶ç›˜ä»·
     UC_126_GLD<-max(asset_price$GLD[(i-125):i])
-    #GLD¹ıÈ¥126Ìì×îµÍÊÕÅÌ¼Û
+    #GLDè¿‡å»126å¤©æœ€ä½æ”¶ç›˜ä»·
     LC_126_GLD<-min(asset_price$GLD[(i-125):i])
     
-    #ÌîÈëGLDµÄprice channel±í
+    #å¡«å…¥GLDçš„price channelè¡¨
     price_channel['UC_126','GLD']<-UC_126_GLD
     price_channel['UC_252','GLD']<-UC_252_GLD
     price_channel['LC_126','GLD']<-LC_126_GLD
     price_channel['LC_252','GLD']<-LC_252_GLD
     price_channel['close','GLD']<-asset_price$GLD[i]
     
-    #VNQ¹ıÈ¥252Ìì×î¸ßÊÕÅÌ¼Û
+    #VNQè¿‡å»252å¤©æœ€é«˜æ”¶ç›˜ä»·
     UC_252_VNQ<-max(asset_price$VNQ[(i-251):i])
-    #GLD¹ıÈ¥252Ìì×îµÍÊÕÅÌ¼Û
+    #GLDè¿‡å»252å¤©æœ€ä½æ”¶ç›˜ä»·
     LC_252_VNQ<-min(asset_price$VNQ[(i-251):i])
-    #GLD¹ıÈ¥126Ìì×î¸ßÊÕÅÌ¼Û
+    #GLDè¿‡å»126å¤©æœ€é«˜æ”¶ç›˜ä»·
     UC_126_VNQ<-max(asset_price$VNQ[(i-125):i])
-    #GLD¹ıÈ¥126Ìì×îµÍÊÕÅÌ¼Û
+    #GLDè¿‡å»126å¤©æœ€ä½æ”¶ç›˜ä»·
     LC_126_VNQ<-min(asset_price$VNQ[(i-125):i])
     
-    #ÌîÈëVNQµÄprice channel±í
+    #å¡«å…¥VNQçš„price channelè¡¨
     price_channel['UC_126','VNQ']<-UC_126_VNQ
     price_channel['UC_252','VNQ']<-UC_252_VNQ
     price_channel['LC_126','VNQ']<-LC_126_VNQ
@@ -687,7 +697,7 @@ ACA<-function(asset_price){
     
     
     
-    #¶ÔÓÚµÚÒ»×é
+    #å¯¹äºç¬¬ä¸€ç»„
     if(price_channel['close','SPY']>= price_channel['UC_126','SPY']){
       asset_weight[(i-250),'SPY'] = 1/3
       asset_weight[(i-250),'IEF_SPY'] = 0
@@ -701,7 +711,7 @@ ACA<-function(asset_price){
     
     
     
-    #¶ÔÓÚµÚ¶ş×é
+    #å¯¹äºç¬¬äºŒç»„
     if(price_channel['close','GLD']>= price_channel['UC_252','GLD']){
       asset_weight[(i-250),'GLD'] = 1/3
       asset_weight[(i-250),'TLT'] = 0
@@ -713,7 +723,7 @@ ACA<-function(asset_price){
       asset_weight[(i-250),'TLT'] = asset_weight[(i-251),'TLT']
     }
     
-    #¶ÔÓÚµÚÈı×é
+    #å¯¹äºç¬¬ä¸‰ç»„
     if(price_channel['close','VNQ']>= price_channel['UC_126','VNQ']){
       asset_weight[(i-250),'VNQ'] = 1/3
       asset_weight[(i-250),'IEF_VNQ'] = 0
@@ -728,7 +738,7 @@ ACA<-function(asset_price){
     asset_weight[(i-250),'IEF']=asset_weight[(i-250),'IEF_SPY']+asset_weight[(i-250),'IEF_VNQ']
     
   }
-  return(asset_weight)
+  return(asset_weight[,c(1,2,3,4,5,8)])
 }
 
 QSF<-function(assets_price){
@@ -738,7 +748,7 @@ QSF<-function(assets_price){
   assets_price<-as.xts(assets_price)
   
   
-  #Ã¿¸öÔÂ×îºóÒ»¸ö½»Ò×ÈÕ¼ÆËã5¸ö×Ê²úµÄ¹ıÈ¥3¸öÔÂµÄ×ÜÊÕÒæ
+  #æ¯ä¸ªæœˆæœ€åä¸€ä¸ªäº¤æ˜“æ—¥è®¡ç®—5ä¸ªèµ„äº§çš„è¿‡å»3ä¸ªæœˆçš„æ€»æ”¶ç›Š
   R1<-monthly.return(assets_price)
   R3<-lapply(R1, function(x) runSum(x, n = 3, cumulative = FALSE))
   R3<-as.data.frame(R3)
@@ -749,18 +759,18 @@ QSF<-function(assets_price){
     R3[i,'max']<-colnames(sort(R3[i,c("SPY", "QQQ", "EFA", "EEM", "TLT")],decreasing = TRUE)[1:1])
   }
   
-  #Ã¿¸öÔÂ×îºóÒ»¸ö½»Ò×ÈÕ¼ÆËã5¸örisk assetsÖĞÎª¸ºµÄÊıÁ¿
+  #æ¯ä¸ªæœˆæœ€åä¸€ä¸ªäº¤æ˜“æ—¥è®¡ç®—5ä¸ªrisk assetsä¸­ä¸ºè´Ÿçš„æ•°é‡
   R3$n <- rowSums(R3[,c("SPY", "QQQ", "EFA", "EEM", "TLT") ]<0)
   
-  #×öÒ»¸öÈ¨ÖØ±í
+  #åšä¸€ä¸ªæƒé‡è¡¨
   weights <- R3
   weights[,1:6]<-NA
   
   
-  #Èç¹ûÈÎÒâÒ»¸ö×Ê²úµÄ3¸öÔÂÊÕÒæÎª¸º(¼´Îª¸ºµÄ×Ê²úÊıÁ¿n>0)£¬ÔòÈ«²¿ÅäÖÃdefensive asset
+  #å¦‚æœä»»æ„ä¸€ä¸ªèµ„äº§çš„3ä¸ªæœˆæ”¶ç›Šä¸ºè´Ÿ(å³ä¸ºè´Ÿçš„èµ„äº§æ•°é‡n>0)ï¼Œåˆ™å…¨éƒ¨é…ç½®defensive asset
   weights[which(weights[,'n']>0),'IEF']<-1
   
-  #Èç¹ûËùÓĞ×Ê²úµÄ3¸öÔÂÊÕÒæ¶¼ÎªÕı£¬ÔòÈ«²¿ÅäÖÃ3¸öÔÂÊÕÒæ×î¸ßµÄ×Ê²ú
+  #å¦‚æœæ‰€æœ‰èµ„äº§çš„3ä¸ªæœˆæ”¶ç›Šéƒ½ä¸ºæ­£ï¼Œåˆ™å…¨éƒ¨é…ç½®3ä¸ªæœˆæ”¶ç›Šæœ€é«˜çš„èµ„äº§
   
   
   
@@ -778,3 +788,90 @@ QSF<-function(assets_price){
   
 }
 
+AAA<-function(data,n.top=5,n.mom=6*21,n.vol=1*21,target.sd=0){
+  #generic function for adaptive asset allocation. 
+  #n.top     # number of momentum positions
+  #n.mom     # length of momentum look back
+  #n.vol     # length of volatility look back
+  
+
+  library(fPortfolio)
+  library(timeSeries)
+  library(corpcor)
+  
+  myEstimator<-function(x,spec){
+    result<-list()
+    result$mu<-colMeans(x) #rep(0,dim(x)[2])
+    result$Sigma<-corpcor::cov.shrink(x,verbose=F)
+    return(result)
+  }
+  
+  data<-wdata
+  returns.daily <-na.omit(ROC(wdata)) 
+  
+  model=list()
+  model$n.top<-n.top
+  model$n.mom<-n.mom
+  model$n.vol<-n.vol
+  n.classes<-dim(returns.daily)[2]
+  periods.end.idx = endpoints(returns.daily, 'months')  #all of the month ends and the last date
+  periods.end.idx = periods.end.idx[periods.end.idx >= max(n.mom,n.vol)] #include those with enough data to calc mom and vol
+  periods.end.dt<-rownames(as.data.frame(returns.daily))[periods.end.idx]
+  n.mos  <- length(periods.end.dt)
+  model$periods<-periods.end.dt[2:(n.mos-1)]
+  
+  results.monthly<-matrix(data=NA,nrow=n.mos-1,ncol=3,
+                          dimnames=list(periods.end.dt[2:(n.mos)],c("Port","B6040","EqN")))
+  
+  allocations<-matrix(data=0,nrow=n.mos-1,ncol=n.classes,
+                      dimnames=list(periods.end.dt[2:(n.mos)],names(returns.daily)))
+  
+  returns.ac<-returns.daily[(periods.end.idx[1]+1):periods.end.idx[n.mos],]
+  model$sd.ac<-apply(returns.ac,2,sd)*sqrt(252)
+  returns.ac<-apply(1+returns.ac,2,prod)^(12/(n.mos-1))-1
+  model$returns.ac<-returns.ac
+  
+  pspec<-portfolioSpec()
+  setEstimator(pspec)="myEstimator"
+  Constraints="LongOnly"
+  
+  for (i in 1:(n.mos-1)){
+    # use momentum to figure out which asset classes to use
+    mom.returns<-returns.daily[(periods.end.idx[i]-n.mom+1):periods.end.idx[i],]
+    mom.rank<-apply(1+mom.returns,2,prod)-1
+    mom.rank<-rank(-mom.rank) # select 1 thru n.top
+    mom.idx<-mom.rank<=n.top  #use these asset classes    
+    # use min variance portfolio to determine the weights of those classes
+    vol.returns<-as.timeSeries(returns.daily[(periods.end.idx[i]-n.vol+1):periods.end.idx[i],mom.idx])  
+    if (target.sd<=0){
+      mv<-suppressWarnings(minvariancePortfolio(vol.returns,pspec,Constraints))
+      wts<-getWeights(mv) #wts in the portfolio
+    } else {
+      mv<-suppressWarnings(targetriskportfolio(vol.returns,target.sd))
+      wts<-mv$weights
+    }
+    # return from next day to last day of next period
+    port.return<-returns.daily[(periods.end.idx[i]+1):periods.end.idx[i+1],mom.idx]
+    port.return<-apply(1+port.return,2,prod)-1
+    port.return<-sum(port.return * wts)
+    results.monthly[i,"Port"]<-port.return
+    eqn.return<-returns.daily[(periods.end.idx[i]+1):periods.end.idx[i+1],mom.idx]
+    eqn.return<-apply(1+eqn.return,2,prod)-1
+    eqn.return<-sum(eqn.return * rep(1/n.top,n.top))
+    results.monthly[i,"EqN"]<-eqn.return
+    #b6040 return
+    b6040.return<-returns.daily[(periods.end.idx[i]+1):periods.end.idx[i+1],c("H00300.CSI","N11077.SH")]
+    b6040.return<-apply(1+b6040.return,2,prod)-1
+    b6040.return<-sum(b6040.return * c(.6,.4))
+    results.monthly[i,"B6040"]<-b6040.return
+    allocations[i,mom.idx]<-wts
+    allocations<-round(allocations,4)
+  }
+  
+  model$allocations<-as.timeSeries(allocations)
+  transactions<-diff(as.matrix(allocations))
+  model$turnover.monthly<-as.xts(rowSums(abs(transactions))/2)
+  model$returns.monthly<-as.xts(results.monthly)
+  model$turnover.mean<-mean(model$turnover.monthly)
+  return(model)
+}
