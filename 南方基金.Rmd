@@ -1,0 +1,2702 @@
+---
+title: "Tactical Asset Allocation Performance Report"
+author: "Xuran ZENG"
+date: "2020/12/8"
+output: 
+  html_document: 
+    toc: yes
+    toc_float: true 
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r echo=FALSE, results='hide'}
+library(xts)
+library(PerformanceAnalytics)
+library(lubridate)
+library(quantmod)
+library(TTR)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(corrplot)
+library(tidyr)
+library(knitr)
+library(DT)
+
+
+source("C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\models2.R")
+source("C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\cal_ret.R")
+
+# source("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\models2.R")
+# source("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\cal_ret.R")
+```
+
+```{r echo=FALSE, results='hide'}
+library(WindR)
+w.start()
+begintime<-"2017-01-01"  
+endtime<-Sys.time()
+```
+
+# Protective Asset Allocation
+Reference:[Keller W J, Keuning J W. Protective asset allocation (PAA): a simple momentum-based alternative for term deposits[J]. Available at SSRN 2759734, 2016.](https://www.semanticscholar.org/paper/Protective-Asset-Allocation-(PAA)%3A-A-Simple-for-Keller-Keuning/a1173640445990274d3fa0988c970561fa471fe6)
+```{r}
+#PAA
+symbol<- c(
+  "159925.OF",   #南方沪深300ETF
+  "160133.OF",   #南方天元新产业
+  "510500.OF",   #南方中证500ETF
+  "510290.OF",   #南方上证380ETF
+  "512330.OF",   #南方中证500信息技术ETF
+  "510160.OF",   #南方小康产业ETF
+  "159903.OF",   #南方深成ETF
+  "513600.OF",   #南方恒生ETF
+  "160106.OF",   #南方高增长
+  "512340.OF",   #南方中证500原材料ETF
+  "160105.OF",   #南方积极配置
+  "159948.OF",   #南方创业板ETF
+  "N00140.SH",   #五年国债
+  "N11077.SH"    #十年国债
+)
+```
+
+
+```{r echo=FALSE}
+wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+colnames(wdata)<-symbol
+assets_price<-wdata
+returns.daily <-as.xts(na.omit(ROC(wdata)))
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\PAA.csv")
+
+# assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\PAA.csv")
+# 
+# assets_price<-xts(assets_price[,-1],ymd(assets_price[,1])) 
+# returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+
+```
+
+```{r results="hide"}
+strategy <- PAA(assets_price, 6, 6)
+```
+
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+bench_symbol<-c('H00300.CSI','N11077.SH')
+bench<-as.data.frame(w.wsd(bench_symbol,'close',begintime,endtime))
+rownames(bench)<-as.Date(bench[,'Data.DATETIME'])
+bench<-subset(bench,select=-c(ErrorCode,Field,Data.DATETIME))
+returns.daily <-as.xts(na.omit(ROC(bench)) )
+
+# bench<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\bench.csv")
+# bench<-xts(bench[,-1],ymd(bench[,1])) 
+
+returns.daily <-as.xts(na.omit(ROC(bench)) )
+benchmark.portf<-portf.sixty_fourty(returns.daily,rebalance_on="months",verbose=T)
+bench.ret <-benchmark.portf$returns
+colnames(bench.ret)<-"Benchmark"
+
+
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r}
+three_years<-'2018-01-01/2021-01-01'
+ret.three_years<-ret[three_years,]
+
+one_year<-'2020-01-01/2021-03-31'
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+cal_ret<-round(cal_ret,2)
+cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+#cal_ret
+cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+
+ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+  scale_x_date(date_breaks="6 months",date_labels="%D")+
+  geom_col(position = 'dodge')
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.portf)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_week)<-'近一周'
+
+ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_month)<-'近一月'
+
+ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_months)<-'近三月'
+
+ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_6_months)<-'近六月'
+
+ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_ytd)<-'年初至今'
+
+ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_year)<-'近一年'
+
+ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_year)<-'近三年'
+
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+
+ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+
+ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+
+ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+  geom_col(position = 'dodge')
+
+```
+
+```{r echo=FALSE}
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+kable(ret_periods)
+```
+
+## 4.  Correlation of assets invested
+
+### three years
+```{r echo=FALSE}
+cor<-cor(returns_data[three_years,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+### one year
+```{r echo=FALSE}
+cor<-cor(returns_data[one_year,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+```{r, include=FALSE}
+
+summary.table<-as.data.frame(matrix(nrow=12,ncol=3))
+
+colnames(summary.table)<-c("Annual return(%)","Sharpe ratio",'Max drawdown(%)')
+
+rownames(summary.table)<-c("Benchmark(60/40)","Protective Asset Allocation", "Generalized Protective Momentum","Adaptive Asset Allocation","Active Combined Asset","Tactical Bond Strategy","Accelerating Dual Momentum","Traditional Dual Momentum","Vigilant Asset Allocation","Robust Asset Allocation-Aggressive","Robust Asset Allocation-Balanced","Quint Switching Filtered")
+
+
+summary.table3<-summary.table
+portf<-bench.ret[three_years,]
+summary.table3[1,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[three_years,]
+summary.table3[2,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+summary.table1<-summary.table
+portf<-bench.ret[one_year,]
+summary.table1[1,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[2,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+```
+  
+# Generalized Protective Momentum
+Reference:[Keller W J, Butler A. A century of generalized momentum; from flexible asset allocations (FAA) to elastic asset allocation (EAA)[J]](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2543979)
+```{r}
+#GPM
+symbol<- c(
+  "159925.OF",   #南方沪深300ETF
+  "160133.OF",   #南方天元新产业
+  "510500.OF",   #南方中证500ETF
+  "510290.OF",   #南方上证380ETF
+  "512330.OF",   #南方中证500信息技术ETF
+  "510160.OF",   #南方小康产业ETF
+  "159903.OF",   #南方深成ETF
+  "513600.OF",   #南方恒生ETF
+  "160106.OF",   #南方高增长
+  "512340.OF",   #南方中证500原材料ETF
+  "160105.OF",   #南方积极配置
+  "159948.OF",   #南方创业板ETF
+  "N00140.SH",   #五年国债
+  "N11077.SH"    #十年国债
+)
+```
+
+
+```{r echo=FALSE}
+wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+colnames(wdata)<-symbol
+assets_price<-wdata
+returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\GPM.csv")
+
+
+
+# assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\GPM.csv")
+# 
+# assets_price<-xts(assets_price[,-1],ymd(assets_price[,1])) 
+# returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- GPM(assets_price, 6, 12)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r}
+three_years<-'2018-01-01/2021-01-01'
+ret.three_years<-ret[three_years,]
+
+one_year<-'2020-01-01/2021-03-31'
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+cal_ret<-round(cal_ret,2)
+cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+#cal_ret
+cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+
+ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+  scale_x_date(date_breaks="6 months",date_labels="%D")+
+  geom_col(position = 'dodge')
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.portf)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_week)<-'近一周'
+
+ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_month)<-'近一月'
+
+ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_months)<-'近三月'
+
+ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_6_months)<-'近六月'
+
+ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_ytd)<-'年初至今'
+
+ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_year)<-'近一年'
+
+ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_year)<-'近三年'
+
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+
+ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+
+ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+
+ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+  geom_col(position = 'dodge')
+
+```
+
+```{r echo=FALSE}
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+kable(ret_periods)
+```
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor<-cor(returns_data[three_years,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+### one year
+```{r echo=FALSE}
+cor<-cor(returns_data[one_year,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[3,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[3,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+
+
+# Adaptive Asset Allocation
+```{r}
+#AAA
+symbol<- c(
+  "159925.OF",   #南方沪深300ETF
+  "160133.OF",   #南方天元新产业
+  "510500.OF",   #南方中证500ETF
+  "510290.OF",   #南方上证380ETF
+  "512330.OF",   #南方中证500信息技术ETF
+  "510160.OF",   #南方小康产业ETF
+  "159903.OF",   #南方深成ETF
+  "513600.OF",   #南方恒生ETF
+  "160106.OF",   #南方高增长
+  "512340.OF",   #南方中证500原材料ETF
+  "160105.OF",   #南方积极配置
+  "159948.OF",   #南方创业板ETF
+  "N00140.SH",   #五年国债
+  "N11077.SH"    #十年国债
+)
+```
+
+
+```{r echo=FALSE}
+wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+colnames(wdata)<-symbol
+assets_price<-wdata
+returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\AAA.csv")
+
+
+
+# assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\AAA.csv")
+# 
+# assets_price<-xts(assets_price[,-1],ymd(assets_price[,1])) 
+# returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- AAA(assets_price, n.top=7,n.mom=6*21,n.vol=1*21,target.sd=0)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r}
+three_years<-'2018-01-01/2021-01-01'
+ret.three_years<-ret[three_years,]
+
+one_year<-'2020-01-01/2021-03-31'
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+cal_ret<-round(cal_ret,2)
+cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+#cal_ret
+cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+
+ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+  scale_x_date(date_breaks="6 months",date_labels="%D")+
+  geom_col(position = 'dodge')
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.portf)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_week)<-'近一周'
+
+ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_month)<-'近一月'
+
+ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_months)<-'近三月'
+
+ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_6_months)<-'近六月'
+
+ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_ytd)<-'年初至今'
+
+ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_year)<-'近一年'
+
+ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_year)<-'近三年'
+
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+
+ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+
+ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+
+ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+  geom_col(position = 'dodge')
+
+```
+
+```{r echo=FALSE}
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+kable(ret_periods)
+```
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor<-cor(returns_data[three_years,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+### one year
+```{r echo=FALSE}
+cor<-cor(returns_data[one_year,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[4,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[4,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+
+  
+# Active Combined Asset
+Reference:[Stoken D. Survival of the Fittest for Investors: Using Darwin’s Laws of Evolution to Build a Winning Portfolio[M]. McGraw Hill Professional, 2011.](https://www.amazon.com/dp/B0076VLJ9W?tag=allocat-20)
+```{r}
+# ACA
+symbol<- c(
+  "159925.OF",  #南方沪深300
+  "159948.OF",  #南方创业板ETF
+  "510500.OF",  #南方中证500ETF
+  "N00140.SH",  #五年国债
+  "N11077.SH"   #十年国债
+)
+```
+
+
+```{r echo=FALSE}
+wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+colnames(wdata)<-symbol
+assets_price<-wdata
+returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\ACA.csv")
+
+# 
+# 
+# 
+# assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\ACA.csv")
+# 
+# assets_price<-xts(assets_price[,-1],ymd(assets_price[,1])) 
+# returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- ACA(assets_price)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r}
+three_years<-'2018-01-01/2021-01-01'
+ret.three_years<-ret[three_years,]
+
+one_year<-'2020-01-01/2021-03-31'
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+cal_ret<-round(cal_ret,2)
+cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+#cal_ret
+cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+
+ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+  scale_x_date(date_breaks="6 months",date_labels="%D")+
+  geom_col(position = 'dodge')
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.portf)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_week)<-'近一周'
+
+ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_month)<-'近一月'
+
+ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_months)<-'近三月'
+
+ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_6_months)<-'近六月'
+
+ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_ytd)<-'年初至今'
+
+ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_year)<-'近一年'
+
+ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_year)<-'近三年'
+
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+
+ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+
+ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+
+ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+  geom_col(position = 'dodge')
+
+```
+
+```{r echo=FALSE}
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+kable(ret_periods)
+```
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor<-cor(returns_data[three_years,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+### one year
+```{r echo=FALSE}
+cor<-cor(returns_data[one_year,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[5,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[5,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+ 
+
+# Tactical Bond Strategy
+Reference:[Paul Novell's investing for a living ](https://investingforaliving.us/page/12/?s=TAA)
+```{r}
+# TBS
+symbol<- c(
+  "160105.OF",    #南方积极配置
+  "510500.OF",    #南方中证500ETF
+  "512340.OF",    #南方中证500原材料ETF
+  "159948.OF",    #南方创业板ETF
+  "159925.OF",    #南方沪深300
+  "510290.OF",    #南方上证380ETF
+  "159903.OF",    #南方深成ETF
+  "N00140.SH",    #五年国债
+  "N11077.SH"     #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+colnames(wdata)<-symbol
+assets_price<-wdata
+returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\TBS.csv")
+
+# assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\TBS.csv")
+# 
+# assets_price<-xts(assets_price[,-1],ymd(assets_price[,1])) 
+# returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- TBS(assets_price)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r}
+three_years<-'2018-01-01/2021-01-01'
+ret.three_years<-ret[three_years,]
+
+one_year<-'2020-01-01/2021-03-31'
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+cal_ret<-round(cal_ret,2)
+cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+#cal_ret
+cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+
+ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+  scale_x_date(date_breaks="6 months",date_labels="%D")+
+  geom_col(position = 'dodge')
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.portf)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_week)<-'近一周'
+
+ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_month)<-'近一月'
+
+ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_months)<-'近三月'
+
+ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_6_months)<-'近六月'
+
+ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_ytd)<-'年初至今'
+
+ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_year)<-'近一年'
+
+ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_year)<-'近三年'
+
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+
+ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+
+ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+
+ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+  geom_col(position = 'dodge')
+
+```
+
+```{r echo=FALSE}
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+kable(ret_periods)
+```
+
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor<-cor(returns_data[three_years,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+
+### one year
+```{r echo=FALSE}
+cor<-cor(returns_data[one_year,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[6,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[6,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+
+# Accelerating Dual Momentum 
+Reference:[Dual Momentum Investing: An Innovative Strategy for Higher Returns with Lower Risk](https://engineeredportfolio.com/2018/05/02/accelerating-dual-momentum-investing/)
+```{r}
+# ADM
+symbol<- c(
+  "159948.OF",  #南方创业板ETF
+  "159925.OF",  #南方沪深300
+  "510500.OF",  #南方中证500ETF
+  "N11077.SH"   #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+colnames(wdata)<-symbol
+assets_price<-wdata
+returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\ADM.csv")
+
+
+# assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\ADM.csv")
+# 
+# assets_price<-xts(assets_price[,-1],ymd(assets_price[,1])) 
+# returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- ADM(assets_price)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r}
+three_years<-'2018-01-01/2021-01-01'
+ret.three_years<-ret[three_years,]
+
+one_year<-'2020-01-01/2021-03-31'
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+cal_ret<-round(cal_ret,2)
+cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+#cal_ret
+cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+
+ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+  scale_x_date(date_breaks="6 months",date_labels="%D")+
+  geom_col(position = 'dodge')
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.portf)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_week)<-'近一周'
+
+ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_month)<-'近一月'
+
+ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_months)<-'近三月'
+
+ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_6_months)<-'近六月'
+
+ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_ytd)<-'年初至今'
+
+ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_year)<-'近一年'
+
+ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_year)<-'近三年'
+
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+
+ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+
+ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+
+ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+  geom_col(position = 'dodge')
+
+```
+
+```{r echo=FALSE}
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+kable(ret_periods)
+```
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor<-cor(returns_data[three_years,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+
+### one year
+```{r echo=FALSE}
+cor<-cor(returns_data[one_year,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[7,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[7,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+  
+# Traditional Dual Momentum
+Reference:[Antonacci G. Risk premia harvesting through dual momentum[J]. Journal of Management & Entrepreneurship, 2018, 2(1): 27-56.](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750)
+```{r}
+# TDM
+symbol<- c(
+  "159925.OF",  #南方沪深300
+  "159948.OF",  #南方创业板ETF
+  "N00140.SH",  #五年国债
+  "N11077.SH"   #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+colnames(wdata)<-symbol
+assets_price<-as.xts(wdata)
+
+returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\TDM.csv")
+
+# 
+# assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\TDM.csv")
+# 
+# assets_price<-xts(assets_price[,-1],ymd(assets_price[,1])) 
+# returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- TDM(assets_price)
+
+returns.daily <-as.xts(na.omit(ROC(assets_price))[,1:3] )
+
+# returns.daily <-as.xts(na.omit(ROC(wdata))[,1:3] )
+
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r}
+three_years<-'2018-01-01/2021-01-01'
+ret.three_years<-ret[three_years,]
+
+one_year<-'2020-01-01/2021-03-31'
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+cal_ret<-round(cal_ret,2)
+cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+#cal_ret
+cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+
+ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+  scale_x_date(date_breaks="6 months",date_labels="%D")+
+  geom_col(position = 'dodge')
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.portf)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_week)<-'近一周'
+
+ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_month)<-'近一月'
+
+ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_months)<-'近三月'
+
+ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_6_months)<-'近六月'
+
+ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_ytd)<-'年初至今'
+
+ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_year)<-'近一年'
+
+ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_year)<-'近三年'
+
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+
+ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+
+ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+
+ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+  geom_col(position = 'dodge')
+
+```
+
+```{r echo=FALSE}
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+kable(ret_periods)
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[8,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[8,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor<-cor(returns_data[three_years,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+### one year
+```{r echo=FALSE}
+cor<-cor(returns_data[one_year,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+  
+# Vigilant Asset Allocation
+Reference:[Keller W, Keuning J W. Breadth Momentum and Vigilant Asset Allocation (VAA): Winning More by Losing Less[J]. 2018.](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3002624)
+```{r}
+#VAA
+symbol<- c(
+  "159925.OF",  #南方沪深300
+  "159948.OF",  #南方创业板ETF
+  "510500.OF",  #南方中证500ETF
+  "160133.OF",  #南方天元新产业
+  "160105.OF",  #南方积极配置
+  "N00140.SH",  #五年国债
+  "N11077.SH"   #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+colnames(wdata)<-symbol
+assets_price<-wdata
+returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\VAA.csv")
+# 
+# 
+# assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\VAA.csv")
+# 
+# assets_price<-xts(assets_price[,-1],ymd(assets_price[,1])) 
+# returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- VAA(assets_price)
+
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r}
+three_years<-'2018-01-01/2021-01-01'
+ret.three_years<-ret[three_years,]
+
+one_year<-'2020-01-01/2021-03-31'
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+cal_ret<-round(cal_ret,2)
+cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+#cal_ret
+cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+
+ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+  scale_x_date(date_breaks="6 months",date_labels="%D")+
+  geom_col(position = 'dodge')
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.portf)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_week)<-'近一周'
+
+ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_month)<-'近一月'
+
+ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_months)<-'近三月'
+
+ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_6_months)<-'近六月'
+
+ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_ytd)<-'年初至今'
+
+ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_year)<-'近一年'
+
+ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_year)<-'近三年'
+
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+
+ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+
+ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+
+ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+  geom_col(position = 'dodge')
+
+```
+
+```{r echo=FALSE}
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+kable(ret_periods)
+```
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor<-cor(returns_data[three_years,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+### one year
+```{r echo=FALSE}
+cor<-cor(returns_data[one_year,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[9,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[9,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+  
+<!-- # Global Tactical Asset Allocation – Agg 3 -->
+<!-- References: [Faber M T. A quantitative approach to tactical asset allocation[J]. The Journal of Wealth Management, 2007, 9(4): 69-79.](https://www.trendfollowing.com/whitepaper/CMT-Simple.pdf) -->
+<!-- ```{r} -->
+<!-- #GTAA -->
+<!-- symbol<- c( -->
+<!--   "159925.OF",  #南方沪深300ETF -->
+<!--   "160133.OF",  #南方天元新产业 -->
+<!--   "510500.OF",  #南方中证500ETF -->
+<!--   "510290.OF",  #南方上证380ETF -->
+<!--   "512330.OF",  #南方中证500信息技术ETF -->
+<!--   "510160.OF",  #南方小康产业ETF -->
+<!--   "159903.OF",  #南方深成ETF -->
+<!--   "513600.OF",  #南方恒生ETF -->
+<!--   "160106.OF",  #南方高增长 -->
+<!--   "512340.OF",  #南方中证500原材料ETF -->
+<!--   "160105.OF",  #南方积极配置 -->
+<!--   "159948.OF",  #南方创业板ETF -->
+<!--   "N11077.SH",  #十年国债 -->
+<!--   "N00140.SH"   #五年国债 -->
+
+<!-- ) -->
+
+<!-- ``` -->
+
+
+<!-- ```{r echo=FALSE} -->
+<!-- wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime)) -->
+<!-- rownames(wdata)<-as.Date(wdata[,'Data.DATETIME']) -->
+<!-- wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME)) -->
+<!-- colnames(wdata)<-symbol -->
+<!-- assets_price<-as.xts(wdata) -->
+<!-- returns.daily <-as.xts(na.omit(ROC(wdata)) ) -->
+
+<!-- # write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\GTAA.csv") -->
+
+
+<!-- # assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\GTAA.csv") -->
+<!-- #  -->
+<!-- # assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))  -->
+<!-- # returns.daily <-as.xts(na.omit(ROC(assets_price)) ) -->
+<!-- ``` -->
+
+<!-- ```{r results="hide"} -->
+<!-- strategy <- GTAA(assets_price,3) -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- returns_data<-returns.daily -->
+<!-- weights_data<-xts(strategy[,-1],ymd(strategy[,1]))  -->
+<!-- portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months") -->
+<!-- portf.ret<-portf$returns -->
+<!-- colnames(portf.ret)<-"Strategy" -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- ret<-cbind(portf.ret, bench.ret) -->
+<!-- colnames<-c("Strategy","Benchmark") -->
+<!-- ``` -->
+
+<!-- ## 1. Performance Summary -->
+<!-- ```{r} -->
+<!-- three_years<-'2018-01-01/2021-01-01' -->
+<!-- ret.three_years<-ret[three_years,] -->
+
+<!-- one_year<-'2020-01-01/2021-03-31' -->
+<!-- ret.one_year<-ret[one_year,] -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- charts.PerformanceSummary(ret.three_years, date.format="%Y%m") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- charts.PerformanceSummary(ret.one_year, date.format="%Y%m") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- tab.perf2(portf.ret[three_years,],bench.ret[three_years,]) -->
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+<!-- tab.perf2(portf.ret[one_year,],bench.ret[one_year,]) -->
+<!-- ``` -->
+
+<!-- ## 2. Position -->
+<!-- ```{r} -->
+<!-- chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA) -->
+<!-- ``` -->
+
+<!-- ## 3. Returns -->
+<!-- ### 3.1  Calendar Returns -->
+<!-- ```{r echo=FALSE} -->
+<!-- cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative) -->
+<!-- cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative) -->
+<!-- cal_ret<-cbind(cal_ret.portf,cal_ret.bench) -->
+<!-- cal_ret<-round(cal_ret,2) -->
+<!-- cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret)) -->
+<!-- #cal_ret -->
+<!-- cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark) -->
+
+<!-- ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+ -->
+<!--   scale_x_date(date_breaks="6 months",date_labels="%D")+ -->
+<!--   geom_col(position = 'dodge') -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+
+<!-- cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,]) -->
+<!-- kable(cal_annual_ret.portf) -->
+
+<!-- cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,]) -->
+<!-- kable(cal_annual_ret.bench) -->
+
+<!-- #grid.newpage() -->
+<!-- #grid.table(cal_annual_ret.portf) -->
+
+<!-- #grid.newpage() -->
+<!-- #grid.table(cal_annual_ret.bench) -->
+
+<!-- ``` -->
+
+<!-- ### 3.2 Interval Returns -->
+<!-- ```{r echo=FALSE} -->
+<!-- ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_1_week)<-'近一周' -->
+
+<!-- ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_1_month)<-'近一月' -->
+
+<!-- ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_3_months)<-'近三月' -->
+
+<!-- ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_6_months)<-'近六月' -->
+
+<!-- ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_ytd)<-'年初至今' -->
+
+<!-- ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_1_year)<-'近一年' -->
+
+<!-- ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_3_year)<-'近三年' -->
+
+<!-- ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year) -->
+<!-- ret_periods<-round(ret_periods,2) -->
+<!-- #rownames(ret_periods)<-1:8 -->
+<!-- rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years") -->
+
+<!-- ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods)) -->
+<!-- ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark) -->
+
+<!-- ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")) -->
+
+<!-- ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+ -->
+<!--   geom_col(position = 'dodge') -->
+
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year) -->
+<!-- ret_periods<-round(ret_periods,2) -->
+<!-- #rownames(ret_periods)<-1:8 -->
+<!-- rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years") -->
+<!-- kable(ret_periods) -->
+<!-- ``` -->
+
+<!-- ## 4.  Correlation of assets invested -->
+<!-- ### three years -->
+<!-- ```{r echo=FALSE} -->
+<!-- cor<-cor(returns_data[three_years,]) -->
+
+<!-- col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA")) -->
+<!-- corrplot(cor, method="color", col=col(200),   -->
+<!--          type="upper", order="hclust",  -->
+<!--          addCoef.col = "black", #添加相关系数 -->
+<!--          tl.col="black", tl.srt=45, #修改字体 -->
+
+<!--          diag=FALSE  -->
+<!--          ) -->
+<!-- ``` -->
+
+<!-- ### one year -->
+<!-- ```{r echo=FALSE} -->
+<!-- cor<-cor(returns_data[one_year,]) -->
+
+<!-- col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA")) -->
+<!-- corrplot(cor, method="color", col=col(200),   -->
+<!--          type="upper", order="hclust",  -->
+<!--          addCoef.col = "black", #添加相关系数 -->
+<!--          tl.col="black", tl.srt=45, #修改字体 -->
+
+<!--          diag=FALSE  -->
+<!--          ) -->
+<!-- ``` -->
+
+<!-- ```{r, include=FALSE} -->
+<!-- portf<-portf.ret[three_years,] -->
+<!-- summary.table3[10,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100) -->
+
+<!-- portf<-portf.ret[one_year,] -->
+<!-- summary.table1[10,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100) -->
+<!-- ``` -->
+
+<!-- # Global Tactical Asset Allocation – Agg 6 -->
+<!-- References: [Faber M T. A quantitative approach to tactical asset allocation[J]. The Journal of Wealth Management, 2007, 9(4): 69-79.](https://www.trendfollowing.com/whitepaper/CMT-Simple.pdf) -->
+<!-- ```{r} -->
+<!-- #GTAA -->
+<!-- symbol<- c( -->
+<!--   "159925.OF",  #南方沪深300ETF -->
+<!--   "160133.OF",  #南方天元新产业 -->
+<!--   "510500.OF",  #南方中证500ETF -->
+<!--   "510290.OF",  #南方上证380ETF -->
+<!--   "512330.OF",  #南方中证500信息技术ETF -->
+<!--   "510160.OF",  #南方小康产业ETF -->
+<!--   "159903.OF",  #南方深成ETF -->
+<!--   "513600.OF",  #南方恒生ETF -->
+<!--   "160106.OF",  #南方高增长 -->
+<!--   "512340.OF",  #南方中证500原材料ETF -->
+<!--   "160105.OF",  #南方积极配置 -->
+<!--   "159948.OF",  #南方创业板ETF -->
+<!--   "N11077.SH",  #十年国债 -->
+<!--   "N00140.SH"   #五年国债 -->
+<!-- ) -->
+
+<!-- ``` -->
+
+
+<!-- ```{r echo=FALSE} -->
+<!-- wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime)) -->
+<!-- rownames(wdata)<-as.Date(wdata[,'Data.DATETIME']) -->
+<!-- wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME)) -->
+<!-- colnames(wdata)<-symbol -->
+<!-- assets_price<-as.xts(wdata) -->
+<!-- returns.daily <-as.xts(na.omit(ROC(wdata)) ) -->
+<!-- ``` -->
+
+<!-- ```{r results="hide"} -->
+<!-- strategy <- GTAA(assets_price,6) -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- weights_data<-xts(strategy[,-1],ymd(strategy[,1]))  -->
+<!-- portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months") -->
+<!-- portf.ret<-portf$returns -->
+<!-- colnames(portf.ret)<-"Strategy" -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- ret<-cbind(portf.ret, bench.ret) -->
+<!-- colnames<-c("Strategy","Benchmark") -->
+<!-- ``` -->
+
+<!-- ## 1. Performance Summary -->
+<!-- ```{r} -->
+<!-- three_years<-'2018-01-01/2021-01-01' -->
+<!-- ret.three_years<-ret[three_years,] -->
+
+<!-- one_year<-'2020-01-01/2021-03-31' -->
+<!-- ret.one_year<-ret[one_year,] -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- charts.PerformanceSummary(ret.three_years, date.format="%Y%m") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- charts.PerformanceSummary(ret.one_year, date.format="%Y%m") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- tab.perf2(portf.ret[three_years,],bench.ret[three_years,]) -->
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+<!-- tab.perf2(portf.ret[one_year,],bench.ret[one_year,]) -->
+<!-- ``` -->
+
+<!-- ## 2. Position -->
+<!-- ```{r} -->
+<!-- chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA) -->
+<!-- ``` -->
+
+<!-- ## 3. Returns -->
+<!-- ### 3.1  Calendar Returns -->
+<!-- ```{r echo=FALSE} -->
+<!-- cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative) -->
+<!-- cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative) -->
+<!-- cal_ret<-cbind(cal_ret.portf,cal_ret.bench) -->
+<!-- cal_ret<-round(cal_ret,2) -->
+<!-- cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret)) -->
+<!-- #cal_ret -->
+<!-- cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark) -->
+
+<!-- ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+ -->
+<!--   scale_x_date(date_breaks="6 months",date_labels="%D")+ -->
+<!--   geom_col(position = 'dodge') -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+
+<!-- cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,]) -->
+<!-- kable(cal_annual_ret.portf) -->
+
+<!-- cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,]) -->
+<!-- kable(cal_annual_ret.bench) -->
+
+<!-- #grid.newpage() -->
+<!-- #grid.table(cal_annual_ret.portf) -->
+
+<!-- #grid.newpage() -->
+<!-- #grid.table(cal_annual_ret.bench) -->
+
+<!-- ``` -->
+
+<!-- ### 3.2 Interval Returns -->
+<!-- ```{r echo=FALSE} -->
+<!-- ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_1_week)<-'近一周' -->
+
+<!-- ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_1_month)<-'近一月' -->
+
+<!-- ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_3_months)<-'近三月' -->
+
+<!-- ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_6_months)<-'近六月' -->
+
+<!-- ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_ytd)<-'年初至今' -->
+
+<!-- ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_1_year)<-'近一年' -->
+
+<!-- ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),]) -->
+<!-- #rownames(ret_3_year)<-'近三年' -->
+
+<!-- ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year) -->
+<!-- ret_periods<-round(ret_periods,2) -->
+<!-- #rownames(ret_periods)<-1:8 -->
+<!-- rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years") -->
+
+<!-- ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods)) -->
+<!-- ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark) -->
+
+<!-- ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")) -->
+
+<!-- ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+ -->
+<!--   geom_col(position = 'dodge') -->
+
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year) -->
+<!-- ret_periods<-round(ret_periods,2) -->
+<!-- #rownames(ret_periods)<-1:8 -->
+<!-- rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years") -->
+<!-- kable(ret_periods) -->
+<!-- ``` -->
+
+<!-- ## 4.  Correlation of assets invested -->
+<!-- ### three years -->
+<!-- ```{r echo=FALSE} -->
+<!-- cor<-cor(returns_data[three_years,]) -->
+
+<!-- col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA")) -->
+<!-- corrplot(cor, method="color", col=col(200),   -->
+<!--          type="upper", order="hclust",  -->
+<!--          addCoef.col = "black", #添加相关系数 -->
+<!--          tl.col="black", tl.srt=45, #修改字体 -->
+
+<!--          diag=FALSE  -->
+<!--          ) -->
+<!-- ``` -->
+
+<!-- ### one year -->
+<!-- ```{r echo=FALSE} -->
+<!-- cor<-cor(returns_data[one_year,]) -->
+
+<!-- col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA")) -->
+<!-- corrplot(cor, method="color", col=col(200),   -->
+<!--          type="upper", order="hclust",  -->
+<!--          addCoef.col = "black", #添加相关系数 -->
+<!--          tl.col="black", tl.srt=45, #修改字体 -->
+
+<!--          diag=FALSE  -->
+<!--          ) -->
+<!-- ``` -->
+
+<!-- ```{r, include=FALSE} -->
+<!-- portf<-portf.ret[three_years,] -->
+<!-- summary.table3[11,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100) -->
+
+<!-- portf<-portf.ret[one_year,] -->
+<!-- summary.table1[11,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100) -->
+<!-- ``` -->
+
+# Robust Asset Allocation-Aggressive
+References:[Tütüncü R H, Koenig M. Robust asset allocation[J]. Annals of Operations Research, 2004, 132(1): 157-187.](https://www.math.cmu.edu/~reha/Pss/raarev.pdf)
+```{r}
+# RAA
+symbol<- c(
+  "159948.OF",  #南方创业板ETF
+  "159925.OF",  #南方沪深300
+  "N11077.SH"   #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+colnames(wdata)<-symbol
+assets_price<-wdata
+returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\RAA.csv")
+
+
+# assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\RAA.csv")
+# 
+# assets_price<-xts(assets_price[,-1],ymd(assets_price[,1])) 
+# returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+#RAA
+strategy <- RAA.Aggressive(returns.daily)
+```
+
+```{r echo=FALSE}
+
+returns_data<-returns.daily
+weights_data<-as.xts(strategy)
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r}
+three_years<-'2018-01-01/2021-01-01'
+ret.three_years<-ret[three_years,]
+
+one_year<-'2020-01-01/2021-03-31'
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+cal_ret<-round(cal_ret,2)
+cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+#cal_ret
+cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+
+ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+  scale_x_date(date_breaks="6 months",date_labels="%D")+
+  geom_col(position = 'dodge')
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.portf)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_week)<-'近一周'
+
+ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_month)<-'近一月'
+
+ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_months)<-'近三月'
+
+ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_6_months)<-'近六月'
+
+ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_ytd)<-'年初至今'
+
+ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_year)<-'近一年'
+
+ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_year)<-'近三年'
+
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+
+ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+
+ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+
+ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+  geom_col(position = 'dodge')
+
+```
+
+```{r echo=FALSE}
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+kable(ret_periods)
+```
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor<-cor(returns.daily[three_years,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+### one year
+```{r echo=FALSE}
+cor<-cor(returns.daily[one_year,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[10,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[10,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+# Robust Asset Allocation-Balanced
+References:[Tütüncü R H, Koenig M. Robust asset allocation[J]. Annals of Operations Research, 2004, 132(1): 157-187.](https://www.math.cmu.edu/~reha/Pss/raarev.pdf)
+```{r}
+# RAA
+symbol<- c(
+  "159948.OF",  #南方创业板ETF
+  "159925.OF",  #南方沪深300
+  "N11077.SH"   #十年国债
+)
+```
+
+
+```{r echo=FALSE}
+wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+colnames(wdata)<-symbol
+assets_price<-as.xts(wdata)
+returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\RAA.csv")
+
+# 
+# assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\RAA.csv")
+# 
+# assets_price<-xts(assets_price[,-1],ymd(assets_price[,1])) 
+# returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+#RAA
+strategy <- RAA.Balanced(returns.daily)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-as.xts(strategy)
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r}
+three_years<-'2018-01-01/2021-01-01'
+ret.three_years<-ret[three_years,]
+
+one_year<-'2020-01-01/2021-03-31'
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+cal_ret<-round(cal_ret,2)
+cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+#cal_ret
+cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+
+ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+  scale_x_date(date_breaks="6 months",date_labels="%D")+
+  geom_col(position = 'dodge')
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.portf)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_week)<-'近一周'
+
+ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_month)<-'近一月'
+
+ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_months)<-'近三月'
+
+ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_6_months)<-'近六月'
+
+ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_ytd)<-'年初至今'
+
+ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_year)<-'近一年'
+
+ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_year)<-'近三年'
+
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+
+ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+
+ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+
+ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+  geom_col(position = 'dodge')
+
+```
+
+```{r echo=FALSE}
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+kable(ret_periods)
+```
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor<-cor(returns.daily[three_years,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+### one year
+```{r echo=FALSE}
+cor<-cor(returns.daily[one_year,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[11,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[11,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+
+# Quint Switching Filtered
+Reference:[Glenn L A. Simple and Effective Market Timing with Tactical Asset Allocation Part 2-Choices[J]. Available at SSRN 3129098, 2018.](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3129098)
+```{r}
+# QSF
+symbol<- c(
+  "159925.OF",   #南方沪深300
+  "160106.OF",   #南方高增长
+  "159903.OF",   #南方深成ETF
+  "512340.OF",   #南方中证500原材料ETF
+  "159948.OF",   #南方创业板ETF
+  "N11077.SH"    #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+colnames(wdata)<-symbol
+assets_price<-wdata
+returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\QSF.csv")
+
+# 
+# 
+# assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\QSF.csv")
+# 
+# assets_price<-xts(assets_price[,-1],ymd(assets_price[,1])) 
+# returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- QSF(assets_price)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r}
+three_years<-'2018-01-01/2021-01-01'
+ret.three_years<-ret[three_years,]
+
+one_year<-'2020-01-01/2021-03-31'
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+cal_ret<-round(cal_ret,2)
+cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+#cal_ret
+cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+
+ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+  scale_x_date(date_breaks="6 months",date_labels="%D")+
+  geom_col(position = 'dodge')
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.portf)
+
+#grid.newpage()
+#grid.table(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+ret_1_week<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dweeks(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_week)<-'近一周'
+
+ret_1_month<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_month)<-'近一月'
+
+ret_3_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_months)<-'近三月'
+
+ret_6_months<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dmonths(6)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_6_months)<-'近六月'
+
+ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_ytd)<-'年初至今'
+
+ret_1_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(1)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_1_year)<-'近一年'
+
+ret_3_year<-Return.cumulative(ret[paste((as.Date(as.Date(Sys.time())) - dyears(3)),as.Date(Sys.time()) ,sep = "/"),])
+#rownames(ret_3_year)<-'近三年'
+
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+
+ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+
+ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+
+ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+  geom_col(position = 'dodge')
+
+```
+
+```{r echo=FALSE}
+ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+ret_periods<-round(ret_periods,2)
+#rownames(ret_periods)<-1:8
+rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+kable(ret_periods)
+```
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor<-cor(returns_data[three_years,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+### one year
+```{r echo=FALSE}
+cor<-cor(returns_data[one_year,])
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", #添加相关系数
+         tl.col="black", tl.srt=45, #修改字体
+
+         diag=FALSE 
+         )
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[12,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[12,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+ 
+
+# Summary
+## three years performance(2018/01/01-2021/01/01)
+```{r echo=FALSE}
+#datatable(round(summary.table3[,1:3],2)) 
+#kable(round(summary.table3[,1:3],2))
+
+
+datatable(summary.table3) %>%
+  formatRound(c("Annual return(%)","Sharpe ratio",'Max drawdown(%)'),digits=2)
+```
+
+## one year performance(2020/01/01-2021/03/31)
+
+```{r echo=FALSE}
+#datatable(round(summary.table1[,1:3],2)) 
+#kable(round(summary.table1[,1:3],2))
+
+datatable(summary.table1) %>%
+  formatRound(c("Annual return(%)","Sharpe ratio",'Max drawdown(%)'),digits=2)
+```
