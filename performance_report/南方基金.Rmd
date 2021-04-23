@@ -1,0 +1,1934 @@
+---
+title: "Tactical Asset Allocation Performance Report"
+author: "Xuran ZENG"
+date: "2021/4/22"
+output: 
+  html_document: 
+    toc: yes
+    toc_float: true 
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r echo=FALSE, results='hide'}
+library(xts)
+library(PerformanceAnalytics)
+library(lubridate)
+library(quantmod)
+library(TTR)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(corrplot)
+library(tidyr)
+library(knitr)
+library(DT)
+library(reticulate)
+
+
+# source("C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\models2.R")
+# source("C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\cal_ret.R")
+# source_python("C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\hrp.py")
+
+source("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\models2.R")
+source("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\cal_ret.R")
+source_python("E:\\spyder\\hrp.py")
+```
+
+```{r echo=FALSE, results='hide'}
+# library(WindR)
+# w.start()
+# begintime<-"2017-01-01"  
+# endtime<-Sys.time()
+```
+
+```{r}
+date<-"2021-03-31"
+#date<-as.Date(Sys.time())
+
+three_years<-'2018-01-01/2021-01-01'
+one_year<-'2020-01-01/2021-03-31'
+```
+
+0413更新：新增控制回撤方法
+
+0422更新：新增机器学习资产配置的模型：Hierarchical Risk Parity(HRP)
+
+# Protective Asset Allocation
+Reference:[Keller W J, Keuning J W. Protective asset allocation (PAA): a simple momentum-based alternative for term deposits[J]. Available at SSRN 2759734, 2016.](https://www.semanticscholar.org/paper/Protective-Asset-Allocation-(PAA)%3A-A-Simple-for-Keller-Keuning/a1173640445990274d3fa0988c970561fa471fe6)
+```{r}
+#PAA
+symbol<- c(
+  "159925.OF",   #南方沪深300ETF
+  "160133.OF",   #南方天元新产业
+  "510500.OF",   #南方中证500ETF
+  "510290.OF",   #南方上证380ETF
+  "512330.OF",   #南方中证500信息技术ETF
+  "510160.OF",   #南方小康产业ETF
+  "159903.OF",   #南方深成ETF
+  "513600.OF",   #南方恒生ETF
+  "160106.OF",   #南方高增长
+  "512340.OF",   #南方中证500原材料ETF
+  "160105.OF",   #南方积极配置
+  "159948.OF",   #南方创业板ETF
+  "N00140.SH",   #五年国债
+  "N11077.SH"    #十年国债
+)
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-wdata
+# returns.daily <-as.xts(na.omit(ROC(wdata)))
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\PAA.csv")
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\PAA.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+
+```
+
+```{r results="hide"}
+strategy <- PAA(assets_price, 6, 6)
+```
+
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+bench_symbol<-c('H00300.CSI','N11077.SH')
+# bench<-as.data.frame(w.wsd(bench_symbol,'close',begintime,endtime))
+# rownames(bench)<-as.Date(bench[,'Data.DATETIME'])
+# bench<-subset(bench,select=-c(ErrorCode,Field,Data.DATETIME))
+# returns.daily <-as.xts(na.omit(ROC(bench)) )
+
+bench<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\bench.csv")
+bench<-xts(bench[,-1],ymd(bench[,1]))
+
+returns.daily <-as.xts(na.omit(ROC(bench)) )
+benchmark.portf<-portf.sixty_fourty(returns.daily,rebalance_on="months",verbose=T)
+bench.ret <-benchmark.portf$returns
+colnames(bench.ret)<-"Benchmark"
+
+
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+```
+
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+
+## 4.  Correlation of assets invested
+
+### three years
+
+```{r echo=FALSE}
+cor_plot(returns_data[three_years,])
+```
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns_data[one_year,])
+
+```
+
+```{r, include=FALSE}
+
+summary.table<-as.data.frame(matrix(nrow=13,ncol=3))
+
+colnames(summary.table)<-c("Annual return(%)","Sharpe ratio",'Max drawdown(%)')
+
+rownames(summary.table)<-c("Benchmark(60/40)","Protective Asset Allocation", "Generalized Protective Momentum","Adaptive Asset Allocation","Active Combined Asset","Tactical Bond Strategy","Accelerating Dual Momentum","Traditional Dual Momentum","Vigilant Asset Allocation","Robust Asset Allocation-Aggressive","Robust Asset Allocation-Balanced","Quint Switching Filtered","Hierarchical Risk Parity")
+
+
+summary.table3<-summary.table
+portf<-bench.ret[three_years,]
+summary.table3[1,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[three_years,]
+summary.table3[2,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+summary.table1<-summary.table
+portf<-bench.ret[one_year,]
+summary.table1[1,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[2,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+```
+  
+# Generalized Protective Momentum
+Reference:[Keller W J, Butler A. A century of generalized momentum; from flexible asset allocations (FAA) to elastic asset allocation (EAA)[J]](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2543979)
+```{r}
+#GPM
+symbol<- c(
+  "159925.OF",   #南方沪深300ETF
+  "160133.OF",   #南方天元新产业
+  "510500.OF",   #南方中证500ETF
+  "510290.OF",   #南方上证380ETF
+  "512330.OF",   #南方中证500信息技术ETF
+  "510160.OF",   #南方小康产业ETF
+  "159903.OF",   #南方深成ETF
+  "513600.OF",   #南方恒生ETF
+  "160106.OF",   #南方高增长
+  "512340.OF",   #南方中证500原材料ETF
+  "160105.OF",   #南方积极配置
+  "159948.OF",   #南方创业板ETF
+  "N00140.SH",   #五年国债
+  "N11077.SH"    #十年国债
+)
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-wdata
+# returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\GPM.csv")
+
+
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\GPM.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- GPM(assets_price, 6, 12)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor_plot(returns_data[three_years,])
+```
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns_data[one_year,])
+
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[3,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[3,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+
+
+# Adaptive Asset Allocation
+```{r}
+#AAA
+symbol<- c(
+  "159925.OF",   #南方沪深300ETF
+  "160133.OF",   #南方天元新产业
+  "510500.OF",   #南方中证500ETF
+  "510290.OF",   #南方上证380ETF
+  "512330.OF",   #南方中证500信息技术ETF
+  "510160.OF",   #南方小康产业ETF
+  "159903.OF",   #南方深成ETF
+  "513600.OF",   #南方恒生ETF
+  "160106.OF",   #南方高增长
+  "512340.OF",   #南方中证500原材料ETF
+  "160105.OF",   #南方积极配置
+  "159948.OF",   #南方创业板ETF
+  "N00140.SH",   #五年国债
+  "N11077.SH"    #十年国债
+)
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-wdata
+# returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\AAA.csv")
+
+source("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\models2.R")
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\AAA.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- AAA(assets_price, n.top=7,n.mom=6*21,n.vol=1*21,target.sd=0)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-as.xts(strategy)
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor_plot(returns_data[three_years,])
+```
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns_data[one_year,])
+
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[4,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[4,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+
+  
+# Active Combined Asset
+Reference:[Stoken D. Survival of the Fittest for Investors: Using Darwin’s Laws of Evolution to Build a Winning Portfolio[M]. McGraw Hill Professional, 2011.](https://www.amazon.com/dp/B0076VLJ9W?tag=allocat-20)
+```{r}
+# ACA
+symbol<- c(
+  "159925.OF",  #南方沪深300
+  "159948.OF",  #南方创业板ETF
+  "510500.OF",  #南方中证500ETF
+  "N00140.SH",  #五年国债
+  "N11077.SH"   #十年国债
+)
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-wdata
+# returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\ACA.csv")
+
+
+
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\ACA.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- ACA(assets_price)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor_plot(returns_data[three_years,])
+```
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns_data[one_year,])
+
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[5,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[5,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+ 
+
+# Tactical Bond Strategy
+Reference:[Paul Novell's investing for a living ](https://investingforaliving.us/page/12/?s=TAA)
+```{r}
+# TBS
+symbol<- c(
+  "160105.OF",    #南方积极配置
+  "510500.OF",    #南方中证500ETF
+  "512340.OF",    #南方中证500原材料ETF
+  "159948.OF",    #南方创业板ETF
+  "159925.OF",    #南方沪深300
+  "510290.OF",    #南方上证380ETF
+  "159903.OF",    #南方深成ETF
+  "N00140.SH",    #五年国债
+  "N11077.SH"     #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-wdata
+# returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\TBS.csv")
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\TBS.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- TBS(assets_price)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor_plot(returns_data[three_years,])
+```
+
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns_data[one_year,])
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[6,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[6,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+
+# Accelerating Dual Momentum 
+Reference:[Dual Momentum Investing: An Innovative Strategy for Higher Returns with Lower Risk](https://engineeredportfolio.com/2018/05/02/accelerating-dual-momentum-investing/)
+```{r}
+# ADM
+symbol<- c(
+  "159948.OF",  #南方创业板ETF
+  "159925.OF",  #南方沪深300
+  "510500.OF",  #南方中证500ETF
+  "N11077.SH"   #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-wdata
+# returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\ADM.csv")
+
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\ADM.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- ADM(assets_price)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor_plot(returns_data[three_years,])
+```
+
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns_data[one_year,])
+
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[7,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[7,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+  
+# Traditional Dual Momentum
+Reference:[Antonacci G. Risk premia harvesting through dual momentum[J]. Journal of Management & Entrepreneurship, 2018, 2(1): 27-56.](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750)
+```{r}
+# TDM
+symbol<- c(
+  "159925.OF",  #南方沪深300
+  "159948.OF",  #南方创业板ETF
+  "N00140.SH",  #五年国债
+  "N11077.SH"   #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-as.xts(wdata)
+# 
+# returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\TDM.csv")
+
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\TDM.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- TDM(assets_price)
+
+returns.daily <-as.xts(na.omit(ROC(assets_price))[,1:3] )
+
+# returns.daily <-as.xts(na.omit(ROC(wdata))[,1:3] )
+
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor_plot(returns_data[three_years,])
+
+```
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns_data[one_year,])
+
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[8,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[8,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+  
+# Vigilant Asset Allocation
+Reference:[Keller W, Keuning J W. Breadth Momentum and Vigilant Asset Allocation (VAA): Winning More by Losing Less[J]. 2018.](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3002624)
+```{r}
+#VAA
+symbol<- c(
+  "159925.OF",  #南方沪深300
+  "159948.OF",  #南方创业板ETF
+  "510500.OF",  #南方中证500ETF
+  "160133.OF",  #南方天元新产业
+  "160105.OF",  #南方积极配置
+  "N00140.SH",  #五年国债
+  "N11077.SH"   #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-wdata
+# returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\VAA.csv")
+# 
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\VAA.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- VAA(assets_price)
+
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor_plot(returns_data[three_years,])
+
+```
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns_data[one_year,])
+
+```
+
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[9,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[9,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+  
+<!-- # Global Tactical Asset Allocation – Agg 3 -->
+<!-- References: [Faber M T. A quantitative approach to tactical asset allocation[J]. The Journal of Wealth Management, 2007, 9(4): 69-79.](https://www.trendfollowing.com/whitepaper/CMT-Simple.pdf) -->
+<!-- ```{r} -->
+<!-- #GTAA -->
+<!-- symbol<- c( -->
+<!--   "159925.OF",  #南方沪深300ETF -->
+<!--   "160133.OF",  #南方天元新产业 -->
+<!--   "510500.OF",  #南方中证500ETF -->
+<!--   "510290.OF",  #南方上证380ETF -->
+<!--   "512330.OF",  #南方中证500信息技术ETF -->
+<!--   "510160.OF",  #南方小康产业ETF -->
+<!--   "159903.OF",  #南方深成ETF -->
+<!--   "513600.OF",  #南方恒生ETF -->
+<!--   "160106.OF",  #南方高增长 -->
+<!--   "512340.OF",  #南方中证500原材料ETF -->
+<!--   "160105.OF",  #南方积极配置 -->
+<!--   "159948.OF",  #南方创业板ETF -->
+<!--   "N11077.SH",  #十年国债 -->
+<!--   "N00140.SH"   #五年国债 -->
+
+<!-- ) -->
+
+<!-- ``` -->
+
+
+<!-- ```{r echo=FALSE} -->
+<!-- wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime)) -->
+<!-- rownames(wdata)<-as.Date(wdata[,'Data.DATETIME']) -->
+<!-- wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME)) -->
+<!-- colnames(wdata)<-symbol -->
+<!-- assets_price<-as.xts(wdata) -->
+<!-- returns.daily <-as.xts(na.omit(ROC(wdata)) ) -->
+
+<!-- # write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\GTAA.csv") -->
+
+
+<!-- # assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\GTAA.csv") -->
+<!-- #  -->
+<!-- # assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))  -->
+<!-- # returns.daily <-as.xts(na.omit(ROC(assets_price)) ) -->
+<!-- ``` -->
+
+<!-- ```{r results="hide"} -->
+<!-- strategy <- GTAA(assets_price,3) -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- returns_data<-returns.daily -->
+<!-- weights_data<-xts(strategy[,-1],ymd(strategy[,1]))  -->
+<!-- portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months") -->
+<!-- portf.ret<-portf$returns -->
+<!-- colnames(portf.ret)<-"Strategy" -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- ret<-cbind(portf.ret, bench.ret) -->
+<!-- colnames<-c("Strategy","Benchmark") -->
+<!-- ``` -->
+
+<!-- ## 1. Performance Summary -->
+<!-- ```{r echo=FALSE} -->
+<!--  -->
+<!-- ret.three_years<-ret[three_years,] -->
+
+<!--  -->
+<!-- ret.one_year<-ret[one_year,] -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- charts.PerformanceSummary(ret.three_years, date.format="%Y%m") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- charts.PerformanceSummary(ret.one_year, date.format="%Y%m") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- tab.perf2(portf.ret[three_years,],bench.ret[three_years,]) -->
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+<!-- tab.perf2(portf.ret[one_year,],bench.ret[one_year,]) -->
+<!-- ``` -->
+
+<!-- ## 2. Position -->
+<!-- ```{r} -->
+<!-- chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA) -->
+<!-- ``` -->
+
+<!-- ## 3. Returns -->
+<!-- ### 3.1  Calendar Returns -->
+<!-- ```{r echo=FALSE} -->
+<!-- ```cal_ret(portf.ret, bench.ret) -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+
+<!-- cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,]) -->
+<!-- kable(cal_annual_ret.portf) -->
+
+<!-- cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,]) -->
+<!-- kable(cal_annual_ret.bench) -->
+
+
+<!-- ``` -->
+
+<!-- ### 3.2 Interval Returns -->
+<!-- ```{r echo=FALSE} -->
+<!-- interval_returns_plot(date,ret) -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- interval_returns_table(date,ret) -->
+<!-- ``` -->
+
+<!-- ## 4.  Correlation of assets invested -->
+<!-- ### three years -->
+<!-- ```{r echo=FALSE} -->
+<!-- cor_plot(returns_data[three_years,]) -->
+
+<!-- ``` -->
+
+<!-- ### one year -->
+<!-- ```{r echo=FALSE} -->
+<!-- cor_plot(returns_data[one_year,]) -->
+
+<!-- ``` -->
+
+<!-- ```{r, include=FALSE} -->
+<!-- portf<-portf.ret[three_years,] -->
+<!-- summary.table3[10,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100) -->
+
+<!-- portf<-portf.ret[one_year,] -->
+<!-- summary.table1[10,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100) -->
+<!-- ``` -->
+
+<!-- # Global Tactical Asset Allocation – Agg 6 -->
+<!-- References: [Faber M T. A quantitative approach to tactical asset allocation[J]. The Journal of Wealth Management, 2007, 9(4): 69-79.](https://www.trendfollowing.com/whitepaper/CMT-Simple.pdf) -->
+<!-- ```{r} -->
+<!-- #GTAA -->
+<!-- symbol<- c( -->
+<!--   "159925.OF",  #南方沪深300ETF -->
+<!--   "160133.OF",  #南方天元新产业 -->
+<!--   "510500.OF",  #南方中证500ETF -->
+<!--   "510290.OF",  #南方上证380ETF -->
+<!--   "512330.OF",  #南方中证500信息技术ETF -->
+<!--   "510160.OF",  #南方小康产业ETF -->
+<!--   "159903.OF",  #南方深成ETF -->
+<!--   "513600.OF",  #南方恒生ETF -->
+<!--   "160106.OF",  #南方高增长 -->
+<!--   "512340.OF",  #南方中证500原材料ETF -->
+<!--   "160105.OF",  #南方积极配置 -->
+<!--   "159948.OF",  #南方创业板ETF -->
+<!--   "N11077.SH",  #十年国债 -->
+<!--   "N00140.SH"   #五年国债 -->
+<!-- ) -->
+
+<!-- ``` -->
+
+
+<!-- ```{r echo=FALSE} -->
+<!-- wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime)) -->
+<!-- rownames(wdata)<-as.Date(wdata[,'Data.DATETIME']) -->
+<!-- wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME)) -->
+<!-- colnames(wdata)<-symbol -->
+<!-- assets_price<-as.xts(wdata) -->
+<!-- returns.daily <-as.xts(na.omit(ROC(wdata)) ) -->
+<!-- ``` -->
+
+<!-- ```{r results="hide"} -->
+<!-- strategy <- GTAA(assets_price,6) -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- weights_data<-xts(strategy[,-1],ymd(strategy[,1]))  -->
+<!-- portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months") -->
+<!-- portf.ret<-portf$returns -->
+<!-- colnames(portf.ret)<-"Strategy" -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- ret<-cbind(portf.ret, bench.ret) -->
+<!-- colnames<-c("Strategy","Benchmark") -->
+<!-- ``` -->
+
+<!-- ## 1. Performance Summary -->
+<!-- ```{r echo=FALSE} -->
+<!--  -->
+<!-- ret.three_years<-ret[three_years,] -->
+
+<!--  -->
+<!-- ret.one_year<-ret[one_year,] -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- charts.PerformanceSummary(ret.three_years, date.format="%Y%m") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- charts.PerformanceSummary(ret.one_year, date.format="%Y%m") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- tab.perf2(portf.ret[three_years,],bench.ret[three_years,]) -->
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+<!-- tab.perf2(portf.ret[one_year,],bench.ret[one_year,]) -->
+<!-- ``` -->
+
+<!-- ## 2. Position -->
+<!-- ```{r} -->
+<!-- chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA) -->
+<!-- ``` -->
+
+<!-- ## 3. Returns -->
+<!-- ### 3.1  Calendar Returns -->
+<!-- ```{r echo=FALSE} -->
+<!-- cal_ret(portf.ret, bench.ret) -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+
+<!-- cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,]) -->
+<!-- kable(cal_annual_ret.portf) -->
+
+<!-- cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,]) -->
+<!-- kable(cal_annual_ret.bench) -->
+
+
+<!-- ``` -->
+
+<!-- ### 3.2 Interval Returns -->
+<!-- ```{r echo=FALSE} -->
+<!-- interval_returns_plot(date,ret) -->
+<!-- ``` -->
+
+<!-- ```{r echo=FALSE} -->
+<!-- interval_returns_table(date,ret) -->
+<!-- ``` -->
+
+<!-- ## 4.  Correlation of assets invested -->
+<!-- ### three years -->
+<!-- ```{r echo=FALSE} -->
+<!-- cor_plot(returns_data[three_years,]) -->
+
+<!-- ``` -->
+
+<!-- ### one year -->
+<!-- ```{r echo=FALSE} -->
+<!-- cor_plot(returns_data[one_year,]) -->
+
+<!-- ``` -->
+
+<!-- ```{r, include=FALSE} -->
+<!-- portf<-portf.ret[three_years,] -->
+<!-- summary.table3[11,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100) -->
+
+<!-- portf<-portf.ret[one_year,] -->
+<!-- summary.table1[11,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100) -->
+<!-- ``` -->
+
+# Robust Asset Allocation-Aggressive
+References:[Tütüncü R H, Koenig M. Robust asset allocation[J]. Annals of Operations Research, 2004, 132(1): 157-187.](https://www.math.cmu.edu/~reha/Pss/raarev.pdf)
+```{r}
+# RAA
+symbol<- c(
+  "159948.OF",  #南方创业板ETF
+  "159925.OF",  #南方沪深300
+  "N11077.SH"   #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-wdata
+# returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\RAA.csv")
+
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\RAA.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+#RAA
+strategy <- RAA.Aggressive(returns.daily)
+```
+
+```{r echo=FALSE}
+
+returns_data<-returns.daily
+weights_data<-as.xts(strategy)
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor_plot(returns.daily[three_years,])
+
+```
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns.daily[one_year,])
+
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[10,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[10,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+# Robust Asset Allocation-Balanced
+References:[Tütüncü R H, Koenig M. Robust asset allocation[J]. Annals of Operations Research, 2004, 132(1): 157-187.](https://www.math.cmu.edu/~reha/Pss/raarev.pdf)
+```{r}
+# RAA
+symbol<- c(
+  "159948.OF",  #南方创业板ETF
+  "159925.OF",  #南方沪深300
+  "N11077.SH"   #十年国债
+)
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-as.xts(wdata)
+# returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\RAA.csv")
+
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\RAA.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+#RAA
+strategy <- RAA.Balanced(returns.daily)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-as.xts(strategy)
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor_plot(returns.daily[three_years,])
+
+```
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns.daily[one_year,])
+
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[11,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[11,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+
+# Quint Switching Filtered
+Reference:[Glenn L A. Simple and Effective Market Timing with Tactical Asset Allocation Part 2-Choices[J]. Available at SSRN 3129098, 2018.](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3129098)
+```{r}
+# QSF
+symbol<- c(
+  "159925.OF",   #南方沪深300
+  "160106.OF",   #南方高增长
+  "159903.OF",   #南方深成ETF
+  "512340.OF",   #南方中证500原材料ETF
+  "159948.OF",   #南方创业板ETF
+  "N11077.SH"    #十年国债
+)
+
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-wdata
+# returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\QSF.csv")
+
+# 
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\QSF.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- QSF(assets_price)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-xts(strategy[,-1],ymd(strategy[,1])) 
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor_plot(returns_data[three_years,])
+
+```
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns_data[one_year,])
+
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[12,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[12,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+ 
+
+
+# Hierarchical Risk Parity
+Reference:[Hierarchical Risk Parity: Accounting for Tail Dependencies in Multi-Asset Multi-Factor Allocations](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3513399)
+
+```{r}
+# HRP
+symbol<- c(
+  "159925.OF",  #南方沪深300
+  "159948.OF",  #南方创业板ETF
+  "510500.OF",  #南方中证500ETF
+  "N00140.SH",  #五年国债
+  "N11077.SH"   #十年国债
+)
+```
+
+
+```{r echo=FALSE}
+# wdata<-as.data.frame(w.wsd(symbol,'close',begintime,endtime))
+# rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+# wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+# colnames(wdata)<-symbol
+# assets_price<-wdata
+# returns.daily <-as.xts(na.omit(ROC(wdata)) )
+
+# write.csv(assets_price,"C:\\Users\\RUCSZ\\Desktop\\asset_allocation\\HRP.csv")
+
+assets_price<-read.csv("d:\\Users\\XuranZENG\\Desktop\\asset_allocation\\data\\nanfang\\HRP.csv")
+
+assets_price<-xts(assets_price[,-1],ymd(assets_price[,1]))
+returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+```
+
+```{r results="hide"}
+strategy <- HRP(assets_price)
+```
+
+```{r echo=FALSE}
+returns_data<-returns.daily
+weights_data<-as.xts(strategy)
+portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+```{r echo=FALSE}
+ret<-cbind(portf.ret, bench.ret)
+colnames<-c("Strategy","Benchmark")
+```
+
+## 1. Performance Summary
+```{r echo=FALSE}
+ret.three_years<-ret[three_years,]
+ret.one_year<-ret[one_year,]
+```
+
+```{r}
+charts.PerformanceSummary(ret.three_years, date.format="%Y%m")
+```
+
+```{r}
+charts.PerformanceSummary(ret.one_year, date.format="%Y%m")
+```
+
+```{r}
+tab.perf2(portf.ret[three_years,],bench.ret[three_years,])
+```
+
+
+```{r}
+tab.perf2(portf.ret[one_year,],bench.ret[one_year,])
+```
+
+## 2. Position
+```{r}
+chart.StackedBar(portf$BOP.Value[three_years], date.format="%y/%m", colorset=rainbow12equal, border=NA)
+```
+
+## 3. Returns
+### 3.1  Calendar Returns
+```{r echo=FALSE}
+cal_ret(portf.ret, bench.ret)
+```
+
+```{r echo=FALSE}
+
+cal_annual_ret.portf<-calendar_ret(portf.ret[three_years,])
+kable(cal_annual_ret.portf)
+
+cal_annual_ret.bench<-calendar_ret(bench.ret[three_years,])
+kable(cal_annual_ret.bench)
+
+
+```
+
+### 3.2 Interval Returns
+```{r echo=FALSE}
+interval_returns_plot(date,ret)
+```
+
+```{r echo=FALSE}
+interval_returns_table(date,ret)
+```
+
+## 4.  Correlation of assets invested
+### three years
+```{r echo=FALSE}
+cor_plot(returns_data[three_years,])
+
+```
+
+### one year
+```{r echo=FALSE}
+cor_plot(returns_data[one_year,])
+
+```
+
+```{r, include=FALSE}
+portf<-portf.ret[three_years,]
+summary.table3[13,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+
+portf<-portf.ret[one_year,]
+summary.table1[13,]<-c(Return.annualized(portf)*100, SharpeRatio.annualized(portf), maxDrawdown(portf)*100)
+```
+
+
+# Summary
+## three years performance(2018/01/01-2021/01/01)
+```{r echo=FALSE}
+#datatable(round(summary.table3[,1:3],2)) 
+#kable(round(summary.table3[,1:3],2))
+
+
+datatable(summary.table3) %>%
+  formatRound(c("Annual return(%)","Sharpe ratio",'Max drawdown(%)'),digits=2)
+```
+
+## one year performance(2020/01/01-2021/03/31)
+
+```{r echo=FALSE}
+#datatable(round(summary.table1[,1:3],2)) 
+#kable(round(summary.table1[,1:3],2))
+
+datatable(summary.table1) %>%
+  formatRound(c("Annual return(%)","Sharpe ratio",'Max drawdown(%)'),digits=2)
+```
