@@ -11,5 +11,5 @@ strategies_and_report
 
 performance_report
 -------
-调用model2.r(所有策略r代码)、cal_ret.r（业绩报告所用函数）、hrp.py（用python写的策略的代码），得到所有策略业绩报告
+调用model2.r(所有策略r代码)、cal_ret.r（业绩报告所用函数）、hrp.py（用python写的策略的代码），运行业绩报告.rmd得到整合所有策略的业绩报告
 
