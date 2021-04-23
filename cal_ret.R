@@ -12,6 +12,92 @@ calendar_ret<-function (ret) {
   table.CalendarReturns(apply.monthly(ret,Return.cumulative), digits=2)
 }
 
+cal_ret<-function(portf.ret, bench.ret){
+  cal_ret.portf<-apply.monthly(portf.ret[three_years,],Return.cumulative)
+  cal_ret.bench<-apply.monthly(bench.ret[three_years,],Return.cumulative)
+  cal_ret<-cbind(cal_ret.portf,cal_ret.bench)
+  cal_ret<-round(cal_ret,2)
+  cal_ret<-cbind(date=as.Date(rownames(as.data.frame(cal_ret))),as.data.frame(cal_ret))
+  #cal_ret
+  cal_ret <- gather(data = cal_ret, key = "type", value = "return", Strategy, Benchmark)
+  
+  ggplot(data = cal_ret,aes(x = date,y = return,fill = type))+
+    scale_x_date(date_breaks="6 months",date_labels="%D")+
+    geom_col(position = 'dodge')
+  
+}
+
+cor_plot<-function(ret){
+  cor<-cor(ret)
+  col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+  corrplot(cor, method="color", col=col(200),  
+           type="upper", order="hclust", 
+           addCoef.col = "black", #添加相关系数
+           tl.col="black", tl.srt=45, #修改字体
+           
+           diag=FALSE 
+  )
+}
+
+interval_returns_table<-function(date,ret){
+  ret_1_week<-Return.cumulative(ret[paste((as.Date(date) - dweeks(1)),date ,sep = "/"),])
+  
+  ret_1_month<-Return.cumulative(ret[paste((as.Date(date) - dmonths(1)),date ,sep = "/"),])
+  
+  ret_3_months<-Return.cumulative(ret[paste((as.Date(date) - dmonths(3)),date ,sep = "/"),])
+  
+  ret_6_months<-Return.cumulative(ret[paste((as.Date(date) - dmonths(6)),date ,sep = "/"),])
+  
+  ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),date ,sep = "/"),])
+  
+  ret_1_year<-Return.cumulative(ret[paste((as.Date(date) - dyears(1)),date ,sep = "/"),])
+  
+  ret_3_year<-Return.cumulative(ret[paste((as.Date(date) - dyears(3)),date ,sep = "/"),])
+  
+  ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+  ret_periods<-round(ret_periods,2)
+  rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+  
+  ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+  ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+  
+  ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+  
+  ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+  ret_periods<-round(ret_periods,2)
+  rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+  kable(ret_periods)
+}
+
+interval_returns_plot<-function(date,ret){
+  ret_1_week<-Return.cumulative(ret[paste((as.Date(date) - dweeks(1)),date ,sep = "/"),])
+  
+  ret_1_month<-Return.cumulative(ret[paste((as.Date(date) - dmonths(1)),date ,sep = "/"),])
+  
+  ret_3_months<-Return.cumulative(ret[paste((as.Date(date) - dmonths(3)),date ,sep = "/"),])
+  
+  ret_6_months<-Return.cumulative(ret[paste((as.Date(date) - dmonths(6)),date ,sep = "/"),])
+  
+  ret_ytd<-Return.cumulative(ret[paste(paste(year(Sys.time()),"01","01",sep = "-"),date ,sep = "/"),])
+  
+  ret_1_year<-Return.cumulative(ret[paste((as.Date(date) - dyears(1)),date ,sep = "/"),])
+  
+  ret_3_year<-Return.cumulative(ret[paste((as.Date(date) - dyears(3)),date ,sep = "/"),])
+  
+  ret_periods<-rbind(ret_1_week,ret_1_month,ret_3_months,ret_6_months,ret_ytd,ret_1_year,ret_3_year)
+  ret_periods<-round(ret_periods,2)
+  rownames(ret_periods)<-c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years")
+  
+  ret_periods<-as.data.frame(cbind(date=rownames(ret_periods),ret_periods))
+  ret_periods <- gather(data =ret_periods, key = "type", value = "return", Strategy, Benchmark)
+  
+  ret_periods$date <- factor(ret_periods$date,levels=c("Last Week","Last Month","Last 3 Months","Last 6 months","Year to Date","Last Year","Last 3 Years"))
+  
+  ggplot(data = ret_periods,aes(x = date,y = return,fill = type))+
+    geom_col(position = 'dodge')
+}
+
+
 longest_drawdown<-function(ret){
   ### this function takes daily returns and returns longest drawdowns in months
   ### can take multiple vectors at a time
