@@ -1,0 +1,178 @@
+---
+title: "MonteCarlo"
+author: "Xuran ZENG"
+date: "2020/12/16"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r echo=FALSE}
+library(xts)
+library(PerformanceAnalytics)
+library(lubridate)
+library(quantmod)
+library(TTR)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+source("C:/Users/carol/Desktop/asset_allocation/cal_ret.R")
+source("C:/Users/carol/Desktop/asset_allocation/models.R")
+```
+
+```{r results="hide"}
+library(WindR)
+w.start()
+begintime<-"2013-07-29"  
+endtime<-Sys.time()
+
+Risky<-c("H00909.CSI",  #沪深300材料
+         "H00910.CSI",  #沪深300工业
+         "H00911.CSI",  #沪深300可选
+         "H00912.CSI",  #沪深300消费
+         "H00913.CSI",  #沪深300医药
+         "H00914.CSI",  #沪深300金融
+         "H00915.CSI",  #沪深300信息
+         "H00300.CSI",  #沪深300
+         "H00905.CSI",  #中证500
+         "399606.SZ",   #创业板
+         "H00140.SH",   #国债指数
+         "518800.SH"    #黄金ETF
+         )   
+cp<-c("N11077.SH",      #十年国债
+      "N00140.SH"       #五年国债
+      )  
+
+symbols<-c(Risky,cp)
+
+wdata<-as.data.frame(w.wsd(symbols,'close',begintime,endtime))
+
+```
+
+```{r echo=FALSE}
+rownames(wdata)<-as.Date(wdata[,'Data.DATETIME'])
+
+wdata<-subset(wdata,select=-c(ErrorCode,Field,Data.DATETIME))
+
+colnames(wdata)<-symbols
+
+returns_data<-na.omit(ROC(wdata),type="discrete")
+colnames(returns_data)<-symbols
+returns_data<-as.xts(returns_data)
+
+N<-3 #number of assets chosen
+P<-12 #periods to calculate momentum
+weights_data<-GPM(wdata,N,P)
+weights_data<-xts(weights_data[,-1],ymd(weights_data[,1])) ## convert to xts
+```
+
+
+构建投资组合
+```{r}
+portf <- Return.portfolio(returns_data, weights = weights_data, verbose=T)
+portf.ret<-portf$returns
+colnames(portf.ret)<-"Strategy"
+```
+
+
+
+计算均值、标准差、初始P0
+```{r}
+ 
+date2 <- Sys.Date()
+date1 <- Sys.Date()-252
+ytd<-paste(date1,date2,sep = "/")
+
+
+
+u<-mean(portf.ret[ytd,])
+stdev<-sd(portf.ret[ytd,])
+
+W0<-portf$BOP.Weight[Sys.Date(),]
+P<-as.data.frame(wdata)[length(wdata[,1]),]
+P0<-as.matrix(W0) %*% t(as.matrix(P))
+
+
+```
+
+
+蒙特卡洛模拟
+```{r}
+
+montecarlo<-function(P0, days, mean, sd){
+  ret<-matrix(0,days,path)
+  ret[1,]<-P0
+  shock<-matrix(0,days,path)
+  drift<-matrix(0,days,path)
+    for (i in 2:days){
+      shock[i,]=rnorm(path, mean, sd)
+      drift[i,]=mean*dt
+      ret[i,]=ret[i-1,]+(ret[i-1,]*(shock[i,]+drift[i,]))
+    }
+  return(ret)
+  
+}
+```
+
+输入模拟的日期长度days、模拟次数path，输出蒙特卡洛模拟结果
+```{r}
+days=252
+path = 1000
+dt=1/days
+mean=u
+sd=stdev
+
+mc<-montecarlo(P0, days, mean, sd)
+```
+
+```{r echo=FALSE}
+port_ret_mc <- data.frame('0分位数' = matrix(NA,days,1), '25分位数' = matrix(NA,days,1),  '50分位数' = matrix(NA,days,1), '75分位数' = matrix(NA,days,1), '100分位数' = matrix(NA,days,1))
+
+for (i in 1:days){
+  port_ret_mc[i,]=quantile(mc[i,])
+}
+
+start_date<-Sys.Date()+1
+end_date<-start_date+252-1
+days<-as.data.frame(seq(start_date, end_date, by="1 day"))
+port_ret_mc<-cbind(days,port_ret_mc)
+colnames(port_ret_mc)<-c("date", "group_1", "group_2", "group_3", "group_4", "group_5")
+```
+
+```{r echo=FALSE}
+
+
+WR<-as.data.frame(portf$BOP.Weight[ytd,])
+PR<-wdata[(length(wdata[,1])-length(WR[,1])+1):length(wdata[,1]),]
+
+P<-as.data.frame(matrix(NA,length(WR[,1]),1))
+for (i in 1:length(WR[,1])){
+  P[i,]<-as.matrix(WR[i,]) %*% t(as.matrix(PR[i,]))
+}
+colnames(P)<-"close"
+
+
+
+Preal<-data.frame(date=as.Date(rownames(WR)),group_1=P,group_2=P,group_3=P,group_4=P,group_5=P)
+colnames(Preal)<-c("date", "group_1", "group_2", "group_3", "group_4", "group_5")
+
+rownames(port_ret_mc)<-as.Date(as.data.frame(port_ret_mc)[,1])
+
+a<-rbind(Preal, port_ret_mc)
+
+a1<-a %>%
+  gather(group_1,group_2,group_3,group_4,group_5, key="分位数", value="净值") %>%
+  mutate(`分位数` = factor(
+    `分位数`, levels = c("group_1", "group_2", "group_3", "group_4", "group_5"),
+    labels = c("0分位数", "25分位数", "50分位数", "75分位数", "100分位数")))
+
+p <- ggplot(data = a1, mapping = aes(
+  x = date, y = `净值`, color = `分位数`))
+p + geom_line()
+```
+
+
