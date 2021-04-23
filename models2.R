@@ -1117,8 +1117,8 @@ AAA<-function(data,n.top=5,n.mom=6*21,n.vol=1*21,target.sd=0){
   
 
   
-  data<-wdata
-  returns.daily <-na.omit(ROC(wdata)) 
+  data<-assets_price
+  returns.daily <-na.omit(ROC(data)) 
   
   model=list()
   model$n.top<-n.top
@@ -1170,11 +1170,6 @@ AAA<-function(data,n.top=5,n.mom=6*21,n.vol=1*21,target.sd=0){
     eqn.return<-apply(1+eqn.return,2,prod)-1
     eqn.return<-sum(eqn.return * rep(1/n.top,n.top))
     results.monthly[i,"EqN"]<-eqn.return
-    #b6040 return
-    b6040.return<-returns.daily[(periods.end.idx[i]+1):periods.end.idx[i+1],c("H00300.CSI","N11077.SH")]
-    b6040.return<-apply(1+b6040.return,2,prod)-1
-    b6040.return<-sum(b6040.return * c(.6,.4))
-    results.monthly[i,"B6040"]<-b6040.return
     allocations[i,mom.idx]<-wts
     allocations<-round(allocations,4)
   }
@@ -1184,12 +1179,67 @@ AAA<-function(data,n.top=5,n.mom=6*21,n.vol=1*21,target.sd=0){
   model$turnover.monthly<-as.xts(rowSums(abs(transactions))/2)
   model$returns.monthly<-as.xts(results.monthly)
   model$turnover.mean<-mean(model$turnover.monthly)
-  return(model)
+  return(as.data.frame(model$allocations))
+  
+
 }
-             
+
 myEstimator<-function(x,spec){
   result<-list()
   result$mu<-colMeans(x) #rep(0,dim(x)[2])
   result$Sigma<-corpcor::cov.shrink(x,verbose=F)
   return(result)
 }
+
+
+
+
+HRP<-function(assets_price){
+  
+  returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+  returns.daily<-as.data.frame(returns.daily)
+  
+  periods.end.idx <- endpoints(returns.daily, 'months')  #all of the month ends and the last date
+  periods.end.idx <- periods.end.idx+1
+  periods.end.dt<-rownames(as.data.frame(returns.daily))[periods.end.idx-1]
+  weights<-assets_price[periods.end.dt]
+  weights[,]<-NA
+  
+  for (i in 1:(length(periods.end.idx)-13)){
+    data<-returns.daily[(periods.end.idx[i]):(periods.end.idx[i+12]-1),]
+    weights[(i+12),]<-hrp(data)
+  }
+  weights<-na.omit(weights)
+  
+  #新增
+  returns.daily <-as.xts(na.omit(ROC(assets_price)) )
+  returns_data<-returns.daily
+  weights_data<-weights
+  portf <- Return.portfolio(returns_data, weights_data, verbose=T, rebalance_on = "months")
+  portf.ret<-portf$returns
+  
+  #计算每月drawdown
+  periods.end.idx <- endpoints(portf.ret, 'month')  #all of the month ends and the last date
+  periods.end.dt<-rownames(as.data.frame(portf.ret))[periods.end.idx]
+  assets_weights<-as.data.frame(weights)
+  adjust<-assets_weights[-1,]
+  for (i in 1:(length(periods.end.idx)-1)){
+    adjust[i,'d']<-rownames(as.data.frame(portf.ret))[periods.end.idx[(i+1)]]
+    adjust[i,'mdd']<-maxDrawdown(portf.ret[(periods.end.idx[i]+1):periods.end.idx[(i+1)]])
+  }
+  
+  #选出月回撤高于3%的月份下一个月标记为1，调整权重
+  adjust[(which(abs(adjust[,'mdd'])>0.05)+1),'adjust']<-TRUE
+  adjust<-adjust[-nrow(adjust),]
+  
+  #若前一个月回撤高于3%，则这一个月全部持有国债，同时计算该月策略回撤，若高于3%则下一个月继续持有国债，若低于3%则下一个月按照策略决定权重
+  adjust[which(adjust[,'adjust']==TRUE),1:(length(symbol)-1)]<-0
+  adjust[which(adjust[,'adjust']==TRUE),length(symbol)]<-1
+  
+  
+  weight.adjust<-adjust[,colnames(assets_weights),drop=TRUE]
+  
+  return(weight.adjust)
+  
+}
+
