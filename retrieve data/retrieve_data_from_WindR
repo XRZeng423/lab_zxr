@@ -1,0 +1,13 @@
+library(WindR)
+w.start()
+
+begintime<-'20180101';
+endtime<-Sys.Date();
+
+#提取时间序列数据
+w_wsd_data<-w.wsd('SPX.GI','close',begintime,endtime);
+w_wsd_data<-w_wsd_data$Data
+
+#提取历史截面数据
+w_wss_data<-w.wss("600000.SH,600005.SH,600004.SH,600007.SH","roe_avg,roa",'tradeDate=20180101');
+w_wss_data<-w_wss_data$Data
