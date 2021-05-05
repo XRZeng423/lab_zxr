@@ -10,6 +10,19 @@ retrieve_data
 strategies_and_report
 -------
 每个策略单独的代码与业绩报告
+* Adaptive Asset Allocation(AAA)
+* Active Combined Asset(ACA)
+* Accelerating Dual Momentum(ADM)
+* Generalized Protective Momentum(GPM)
+* Global Tactical Asset Allocation(GTAA3/6)
+* Hierarchical Risk Parity(HRP)
+* Protective Asset Allocation(PAA)
+* Quint Switching Filtered(QSF)
+* Robust Asset Allocation(RAA Balanced/Aggressive)
+* Tactical Bond Strategy(TBS)
+* Traditional Dual Momentum(TDM)
+* Vigilant Asset Allocation(VAA)
+
 
 performance_report
 -------
