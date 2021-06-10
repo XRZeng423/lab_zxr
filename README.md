@@ -26,10 +26,10 @@ strategies_and_report
 performance_report
 -------
 source
-* model2.r: 所有策略r代码
-* cal_ret.r: 业绩报告所用函数
-* hrp.py: 用python写的策略的代码
+* model2.r: all strategies code(R)
+* cal_ret.r: code for performance report generation
+* hrp.py: all strategies code(python)
 
 run
-* 业绩报告.rmd: 整合所有策略的业绩报告
+* 业绩报告.rmd: performance report for all strategies
 
