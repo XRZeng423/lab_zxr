@@ -1,0 +1,246 @@
+library(xts)
+library(PerformanceAnalytics)
+library(lubridate)
+library(quantmod)
+library(readr)
+library(lubridate)
+
+
+source("C:/Users/carol/Desktop/asset_allocation/cal_ret.R")
+source("C:/Users/carol/Desktop/factor/models.R")
+setwd("C:\\Users\\carol\\Desktop\\factor")
+
+### read data ---------------
+
+value<-read.csv("results/value.csv") ## read in price data 
+value<-value[,2:3]
+
+size<-read.csv("results/size.csv") ## read in price data 
+size<-size[,2:3]
+
+liquidity<-read.csv("results/liquidity.csv") ## read in price data 
+liquidity<-liquidity[,2:3]
+
+reversal<-read.csv("results/reversal.csv") ## read in price data 
+reversal<-reversal[,2:3]
+
+momentum<-read.csv("results/momentum.csv") ## read in price data 
+momentum<-momentum[,2:3]
+
+per_share<-read.csv("results/per_share.csv") ## read in price data 
+per_share<-per_share[,2:3]
+
+factor_return<-cbind(value,size,liquidity, reversal, momentum,per_share)
+
+factor_return<-factor_return[,c(1,2,4,6,8,10,12)]
+factor_return<-na.omit(factor_return)
+trading_months<-factor_return$trading_months
+colnames(factor_return)<-c("trading_months","value","size","liquidity", "reversal", "momentum","per_share")
+factor_return<-xts(factor_return[,-1],ymd(factor_return[,1]))
+##write.csv(factor_return,file ="results\\allocation\\factor_return.csv",)
+
+### 1、equal_weights allocatoin
+
+equal_weights<-rep(1/ncol(factor_return),ncol(factor_return)) 
+equal_weights.port<-Return.portfolio(factor_return,weights = equal_weights,rebalance_on = "months",verbose = T)
+equal_weights.ret<-equal_weights.port$returns
+colnames(equal_weights.ret)<-"equal_weights"
+#write.csv(equal_weights,file ="results\\allocation\\equal_weights.csv",)
+#write.csv(equal_weights.ret,file ="results\\allocation\\equal_weights_ret.csv",)
+
+
+### benchmark
+hs300 <- read_delim("data/hs300.txt", 
+                    "\t", escape_double = FALSE, col_types = cols(Accper = col_date(format = "%Y-%m-%d")), 
+                    trim_ws = TRUE)
+
+benchmark<-hs300[,c(2,4)]
+benchmark[,1]<-as.Date(benchmark$Month)
+colnames(benchmark)<-c("trading_months","hs300")
+rownames(benchmark)<-as.Date(benchmark$trading_months)
+benchmark<-benchmark[trading_months,]
+
+ret1<-cbind(as.data.frame(factor_return),as.data.frame(equal_weights.ret), benchmark)
+ret1<-ret1[,c(1,2,3,4,5,6,7,9)]
+ret1<-as.xts(ret1)
+
+
+ret<-cbind(as.data.frame(equal_weights.ret), benchmark)
+ret<-ret[,c(1,3)]
+ret<-as.xts(ret)
+
+
+
+tab.perf(ret1)
+
+charts.PerformanceSummary(ret, date.format="%Y%m")
+
+cal_annual_ret<-gen_cal_annual_ret(ret,colnames(ret))
+cal_annual_ret
+
+chart.StackedBar(equal_weights.port$BOP.Value, date.format="%y/%m", colorset=rainbow12equal, border=NA)
+
+### 2、risk parity allocatoin
+
+s_sigma<-apply(factor_return, 2, function(x) 1/StdDev(x))
+s_sum<-sum(s_sigma)
+s_weight<-s_sigma/s_sum  #xts objects containing weights, rebalance at end of month
+
+risk_parity.port<-Return.portfolio(factor_return,weights = s_weight,rebalance_on = "months",verbose = T)
+risk_parity.ret<-risk_parity.port$returns
+colnames(risk_parity.ret)<-"risk_parity"
+
+
+ret2<-cbind(ret,as.data.frame(risk_parity.ret))
+ret2<-as.xts(ret2)
+
+#write.csv(s_weight,file ="results\\allocation\\risk_parity.csv",)
+#write.csv(risk_parity.ret,file ="results\\allocation\\risk_parity_ret.csv",)
+
+
+tab.perf(ret2)
+
+charts.PerformanceSummary(ret2, date.format="%Y%m")
+
+cal_annual_ret<-gen_cal_annual_ret(ret2,colnames(ret2))
+cal_annual_ret
+
+chart.StackedBar(risk_parity.port$BOP.Value, date.format="%y/%m", colorset=rainbow12equal, border=NA)
+
+#3、mean-variance allocation
+require(fPortfolio)
+library(tseries)	
+library(zoo)
+averet=matrix(colMeans(factor_return),nrow=1)
+rcov=cov(factor_return)
+port.sol = portfolio.optim(x = averet,
+                           covmat = rcov, shorts = F)
+w = port.sol$pw
+mean_variance.port<-Return.portfolio(factor_return,weights = w,rebalance_on = "months",verbose = T)
+mean_variance.ret<-mean_variance.port$returns
+colnames(mean_variance.ret)<-"mean_variance"
+
+
+ret3<-cbind(ret2,as.data.frame(mean_variance.ret))
+ret3<-as.xts(ret3)
+
+#write.csv(w,file ="results\\allocation\\mean_variance.csv",)
+#write.csv(mean_variance.ret,file ="results\\allocation\\mean_variance_ret.csv",)
+
+
+tab.perf(ret3)
+
+charts.PerformanceSummary(ret3, date.format="%Y%m")
+
+cal_annual_ret<-gen_cal_annual_ret(ret3,colnames(ret3))
+cal_annual_ret
+
+chart.StackedBar(mean_variance.port$BOP.Value, date.format="%y/%m", colorset=rainbow12equal, border=NA)
+
+#4、GPM allocation
+#size和reversal的波动率最小，设为保护资产
+Risky<-c("value", "liquidity", "momentum", "per_share")  
+cp<-c("size","reversal")  
+N<-2
+P<-6
+w.GPM<-GPM(factor_return,N,P)
+w.GPM<-xts(w.GPM[,-1],ymd(w.GPM[,1]))
+
+GPM.port<-Return.portfolio(factor_return,weights = w.GPM,rebalance_on = "months",verbose = T)
+GPM.ret<-GPM.port$returns
+colnames(GPM.ret)<-"GPM"
+
+#write.csv(w.GPM,file ="results\\allocation\\GPM.csv",)
+#write.csv(GPM.ret,file ="results\\allocation\\GPM_ret.csv",)
+
+days<-rownames(as.data.frame(GPM.ret))
+ret4<-cbind(ret3[days,],as.data.frame(GPM.ret))
+ret4<-as.xts(ret4)
+
+
+
+tab.perf(ret4)
+
+charts.PerformanceSummary(ret4, date.format="%Y%m")
+
+cal_annual_ret<-gen_cal_annual_ret(ret4,colnames(ret4))
+cal_annual_ret
+
+chart.StackedBar(GPM.port$BOP.Value, date.format="%y/%m", colorset=rainbow12equal, border=NA)
+
+#5、ACA allocation
+#size和reversal的波动率最小，设为保护资产
+RA1<-"per_share"
+RA2<-"value"
+RA3<-"liquidity"
+DA1<-"momentum"
+DA2<-"size"
+DA3<-"reversal"
+symbols<-c(RA1,RA2,RA3,DA1,DA2,DA3)
+
+all_assets<-as.data.frame(factor_return)
+all_assets<-all_assets[,symbols]
+
+
+w.ACA<-ACA(all_assets)
+w.ACA<-xts(w.ACA[,-1],ymd(w.ACA[,1]))
+
+ACA.port<-Return.portfolio(factor_return,weights = w.ACA,rebalance_on = "months",verbose = T)
+ACA.ret<-ACA.port$returns
+colnames(ACA.ret)<-"ACA"
+
+#write.csv(w.ACA,file ="results\\allocation\\ACA.csv",)
+#write.csv(ACA.ret,file ="results\\allocation\\ACA_ret.csv",)
+
+days<-rownames(as.data.frame(ACA.ret))
+ret5<-cbind(ret4[days,],as.data.frame(ACA.ret))
+ret5<-as.xts(ret5)
+
+
+
+
+tab.perf(ret5)
+
+charts.PerformanceSummary(ret5, date.format="%Y%m")
+
+cal_annual_ret<-gen_cal_annual_ret(ret5,colnames(ret5))
+cal_annual_ret
+
+chart.StackedBar(ACA.port$BOP.Value, date.format="%y/%m", colorset=rainbow12equal, border=NA)
+
+#6、AAA allocation
+
+
+minrisk.model<-AAA(factor_return, n.top=3,n.mom=6,n.vol=6,target.sd=0)
+weights_data<-minrisk.model$allocations
+weights_data<-as.data.frame(weights_data)
+date<-rownames(weights_data)
+weights_data<-cbind(date, weights_data)
+
+
+
+w.AAA<-weights_data
+w.AAA<-xts(w.AAA[,-1],ymd(w.AAA[,1]))
+
+AAA.port<-Return.portfolio(factor_return,weights = w.AAA,rebalance_on = "months",verbose = T)
+AAA.ret<-AAA.port$returns
+colnames(AAA.ret)<-"AAA"
+
+write.csv(w.AAA,file ="results\\allocation\\AAA.csv",)
+write.csv(AAA.ret,file ="results\\allocation\\AAA_ret.csv",)
+
+ret6<-cbind(ret5,as.data.frame(AAA.ret))
+ret6<-as.xts(ret6)
+
+
+
+
+tab.perf(ret6)
+
+charts.PerformanceSummary(ret6, date.format="%Y%m")
+
+cal_annual_ret<-gen_cal_annual_ret(ret6,colnames(ret6))
+cal_annual_ret<-na.omit(cal_annual_ret)
+cal_annual_ret
+
+chart.StackedBar(AAA.port$BOP.Value, date.format="%y/%m", colorset=rainbow12equal, border=NA)
