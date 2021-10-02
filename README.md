@@ -33,3 +33,8 @@ source
 run
 * 业绩报告.rmd: performance report for all strategies
 
+performance_report
+-------
+Replication of the paper: Deep learning for finance: deep portfolio  
+[Heaton J B, Polson N G, Witte J H. Deep learning for finance: deep portfolios[J]. Applied Stochastic Models in Business and Industry, 2017, 33(1): 3-12.]
+(https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2838013)
