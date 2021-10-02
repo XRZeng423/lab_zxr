@@ -46,3 +46,7 @@ Replication of the paper: Deep learning for finance: deep portfolio
 * data IBB: IBB index and component stock's data used to replicate the article
 * data hs300: hs300 index and component stock's data gathered from Wind
 
+Factor-based Asset Allocation
+-------
+BA thesis: The Empirical Study of Factor-based Asset Allocation on A-Share Market
+
