@@ -123,9 +123,9 @@ conn.close()
 t1=time.time()
 
 '''
-path_dailyquote = r'E:\科研\因子库\data sample\daily_quote_gbk'#编码是gbk/ansi
+path_dailyquote = r'E:\data\data sample\daily_quote_gbk'#gbk/ansi
 all_daily_quote=glob.glob(path_dailyquote+"/*.csv")
-path_financial = r'E:\科研\因子库\data sample\financial_index_general\financial_index_general.csv'#编码是utf-8
+path_financial = r'E:\data\data sample\financial_index_general\financial_index_general.csv'#utf-8
 
 temporary_list=[]
 for file in all_daily_quote:
