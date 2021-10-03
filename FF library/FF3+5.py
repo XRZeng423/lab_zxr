@@ -2,7 +2,7 @@
 """
 Created on Tue Oct 22 15:55:21 2019
 
-@author: mengyao zheng
+@author:  86572
 """
 
 #!/usr/bin/env python
@@ -19,7 +19,7 @@ import time
 import os
 
 import sys
-sys.path.append(r'D:\mengyao_quant') #daily_to_monthly.py 文件所在的文件夹
+sys.path.append(r'E:\data') #daily_to_monthly.py 文件所在的文件夹
 import daily_to_monthly
 
 
@@ -273,7 +273,7 @@ print('time spent to clean the data in financial df', t7-t6)
 
 #%%
 t_indroduce_rf0=time.time()
-path_rf = r'D:\mengyao_quant\rf_trading date.csv'#编码是utf-8
+path_rf = r'E:\data\rf_trading date.csv'#编码是utf-8
 
 df_risk_free_rate=pd.read_csv(path_rf,encoding='utf-8',low_memory = False)#有两列：date，rate。 date的数据格式是str，rate的数据格式是float,注意此时单位为1%
 
@@ -413,7 +413,7 @@ def get_18groups(tp,year):
         v=port_list.index(i)
         dic={name[v]:i}
         portfolios_df=pd.DataFrame(dic)
-        portfolios_df.to_csv('D:\mengyao_quant\FF_18_Portfolios got at june end of' + str(year)+'\portfolio'+ str(name[v])+ 'got at june end of' +str(year) + '.csv', index=False,header=True)
+        portfolios_df.to_csv('E:\data\FF_18_Portfolios got at june end of' + str(year)+'\portfolio'+ str(name[v])+ 'got at june end of' +str(year) + '.csv', index=False,header=True)
     
     return SH_BM,SN_BM,SL_BM,BH_BM,BN_BM,BL_BM,SR_OP,SN_OP,SW_OP,BR_OP,BN_OP,BW_OP,SC_Inv,SN_Inv,SA_Inv,BC_Inv,BN_Inv,BA_Inv
 
@@ -562,7 +562,7 @@ for year in yearlist:#year is str
  
 #%%
 #整合
-cur_dir="D:/mengyao_quant/results"
+cur_dir="E:/data/results"
 period_calculated="/2005-07-01 to 2019-12-23"
 
 #三因子
