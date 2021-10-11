@@ -50,3 +50,7 @@ Factor-based Asset Allocation
 -------
 BA thesis: The Empirical Study of Factor-based Asset Allocation on A-Share Market
 
+FF library
+-------
+*  Calculation of Fama-French Factors (FF3 and FF5), and construction of portfolios
+*  Empirical results from China A-share market
