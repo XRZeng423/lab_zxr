@@ -1,193 +1,246 @@
+---
+title: "FMC"
+author: "XuranZeng"
+date: "10/16/2021"
+output: 
+  html_document: 
+    toc: true
+    theme: united
+---
 
-library(xts)
-library(PerformanceAnalytics)
-library(lubridate)
-library(quantmod)
-library(TTR)
-library(ggplot2)
-library(grid)
-library(gridExtra)
-library(corrplot)
-library(tidyr)
-library(knitr)
-library(DT)
-library(reticulate)
-library(plyr)
-options("scipen"=100, "digits"=4)
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=5, fig.pash='Figs/', echo = TRUE, warning=FALSE, message=FALSE)
+```
 
 # Data Construction
 ## CCM
-ccm<-read.csv("E:\\data\\fmc_exam_2020_2021\\fmc_exam_data\\ccm_10_19.csv")
+```{r, echo=FALSE}
+library(lubridate)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(tidyr)
+library(knitr)
+library(plyr)
+library(plm)
+library(xtable)
 
-### First, drop observations where total assets are missing as well as where the foreign incorporation code is not "USA". How many observations are dropped in each step? Report the numbers.
+#ccm<-read.csv("E:\\data\\fmc_exam_2020_2021\\fmc_exam_data\\ccm_10_19.csv")
+ccm<-read.csv("/home/xuranzeng/fm/ccm_10_19.csv")
+```
 
-#### AT=total asset
+(a) First, drop observations where **total assets are missing** as well as where the **foreign incorporation code is not "USA"**. How many observations are dropped in each step? Report the numbers.   
+
+```{r,echo=FALSE}
+# at=total asset
 ccm1<-ccm[!is.na(ccm$at),]
-cat(length(ccm[,1])-length(ccm1[,1]),"observations where AT is missing are dropped")
 
-#### fic = Foreign Incorporation Code
-
+# fic = Foreign Incorporation Code
 ccm2 <- subset(ccm1, fic == 'USA')
-cat(length(ccm1[,1])-length(ccm2[,1]),"observations where FIC is not USA are dropped")
+```
 
-### Construct the book value of equity
+```{r, echo=FALSE}
+cat(length(ccm[,1])-length(ccm1[,1]),"observations where AT is missing are dropped","\n")
 
+cat(length(ccm1[,1])-length(ccm2[,1]),"observations where FIC is not USA are dropped","\n")
+```
+
+(b) Construct the **book value of equity**   
+```{r,echo=FALSE}
 ccm2$bvps<-ccm2$pstkrv
 ccm2[which(is.na(ccm2$bvps)),'bvps']<-ccm2[which(is.na(ccm2$bvps)),'pstkl']
-
 ccm2[which(is.na(ccm2$bvps)),'bvps']<-ccm2[which(is.na(ccm2$bvps)),'pstk']
-
 ccm2[which(is.na(ccm2$bvps)),'bvps']<-0
-
 ccm2$be<-ccm2$seq+ccm2$txditc-ccm2$bvps
+summary(ccm2$be)
+```
+
+BVPS represents preferred stocks. Book Equity is a firm's common equity that represents the amount available for distribution to shareholders. Thus, when derive BE, we should use shareholders' equity (SEQ) plus deferred taxs and credits (TXDITC) minus preferred stocks (BVPS).   
 
 
-### Calculate leverage as the ratio of long-term debt over total assets.
-#### dltt = Long-Term Debt-Total, at=Total Asset
+(c) Calculate **leverage** as the ratio of long-term debt over total assets.   
+```{r,echo=FALSE}
+# dltt = Long-Term Debt-Total, at=Total Asset
 ccm2$lev<-ccm2$dltt/ccm2$at
+summary(ccm2$lev)
+```
 
-### Keep net income and total dividends to proxy firm profitability. Keep R&D expenses as proxy for investment behavior.
+(d) Keep net income and total dividends to proxy firm profitability. Keep R&D expenses as proxy for investment behavior.   
+```{r, echo=FALSE}
+ccm3<-ccm2[,c("cusip","datadate","naics","xrd","ni","dvt","lev","be","conm")]
+kable(xtable(ccm3[100:105,]),digits=4,align="c")
+```
 
-## CRSP 
-### Investigate if there are any permno-month-year duplicates, report your findings and explain why this may happen? Drop these duplicates. How many observations are dropped? Report the numbers.
-crsp<-read.csv("E:\\data\\fmc_exam_2020_2021\\fmc_exam_data\\crsp_07_19.csv")
 
-#### Permno-month-year duplicates
 
+
+## CRSP
+```{r, echo=FALSE}
+#crsp<-read.csv("E:  data  fmc_exam_2020_2021  fmc_exam_data  crsp_07_19.csv")
+crsp<-read.csv("/home/xuranzeng/fm/crsp_07_19.csv")
+```
+
+(a) Investigate if there are any **permno month year duplicates**, report your findings and explain why this may happen? Drop these duplicates. How many observations are dropped? report the number   
+```{r, echo=FALSE}
 crsp$date2<-ymd(crsp$date)
 crsp$month<-month(crsp$date2)
 crsp$year<-year(crsp$date2)
+```
+
+```{r, echo=FALSE}
+a<-which(duplicated(crsp[,c('PERMNO','month','year')]))
+b<-which(duplicated(crsp[,c('PERMNO','month','year')]))-1
+c<-sort(c(a,b))
+crsp_duplicate<-crsp[c,]
+```
+
+```{r, echo=FALSE}
 crsp2<-crsp[!duplicated(crsp[,c('PERMNO','month','year')]),]
-#a<-crsp[duplicated(crsp[,c('PERMNO','month','year')]),]分类看为什么重复
+cat("There are",length(crsp[,1])-length(crsp2[,1]),"observations where PERMNO-MONTH-YEAR duplicates")
+```
+
+Why this may happen?   
+```{r,echo=FALSE}
+cat("The first duplicated data is cause by:",colnames(crsp_duplicate)[which(crsp_duplicate[1,]!=crsp_duplicate[2,])],"\n")
+cat("The second duplicated data is cause by:",colnames(crsp_duplicate)[which(crsp_duplicate[3,]!=crsp_duplicate[4,])],"\n")
+cat("The third duplicated data is cause by:",colnames(crsp_duplicate)[which(crsp_duplicate[5,]!=crsp_duplicate[6,])],"\n")
+cat("The fourth duplicated data is cause by:",colnames(crsp_duplicate)[which(crsp_duplicate[7,]!=crsp_duplicate[8,])],"\n")
+cat("The fifth duplicated data is cause by:",colnames(crsp_duplicate)[which(crsp_duplicate[9,]!=crsp_duplicate[10,])],"\n")
+```
+Generally speaking, data duplication is caused by different [DISTCD(distribution code)](http://www.crsp.org/products/documentation/distribution-codes) and DIVAMT(dividend cash amount). A company may have several different distribution event at a same day. For example, company (10001) on (20080229) has two distribution codes: 1222 and 5523.   
+- 1222 means:   
+  + Event Type: ordinary dividend   
+  + Payment Method: cash, United States dollars   
+  + Dividend Frequency: monthly   
+  + Tax Status: normal taxable at same rate as dividends  
+- 5523 means:   
+  + Event Type: splits and stock dividends   
+  + Payment Method: same issue of common stock   
+  + Split Type:  	split   
+  + Tax Status: normal non-taxable  
+
+```{r, echo=FALSE}
 cat(length(crsp[,1])-length(crsp2[,1]),"observations where PERMNO-MONTH-YEAR duplicates are dropped")
+```
 
+(b) Calculate the **market value of equity** (Note: check the summary statistics of the price first. What do you find? How to resolve this issue?)
 
-#### Calculate the market value of equity
+```{r, echo=FALSE}
 summary(crsp2$PRC)
-cat("NA")
-crsp2$mv<-crsp2$PRC * crsp2$SHROUT
+```
 
-#### Construct a proxy variable for market illiquidity.
+There are 22051 NA data. Drop NA data. Besides, since market value is equal to the product of price and shares outstanding and other financial indicators such as book equity, dividend and net income are thousands of dollar. We multiply market value by 10^(-3) to keep the same magnitude. 
+```{r,echo=FALSE}
+crsp2$mv<-crsp2$PRC * crsp2$SHROUT * 10^(-3)
+summary(crsp2$mv)
+```
 
+
+(c) Construct a proxy variable for **market illiquidity**.  
+
+```{r,echo=FALSE}
 # return: RETX
-
 # do not include returns from months with a negative price
 crsp3<-subset(crsp2, PRC >= 0)
 crsp4<-crsp3[,c("PERMNO","year","date2","VOL","RETX","mv","CUSIP","date","mv","COMNAM","NAICS","month")]
 
-# trading volumn in millions of dollars
-crsp4$VOL2<-crsp4$VOL*(10)^(-6)
+# trading volume in millions of dollars
+crsp4$VOL2<-crsp4$VOL*(10)^(-4)
 crsp4$RV<-abs(as.numeric(crsp4$RETX))/as.numeric(crsp4$VOL2)
 crsp4<-na.omit(crsp4)
 ANNUAL_ILLIQ<-aggregate(crsp4$RV,by=list(PERMNO=crsp4$PERMNO, year=crsp4$year),mean)
 colnames(ANNUAL_ILLIQ)<-c("PERMNO","year","ILLIQ")
+```
 
+(d) Annualize **market equity**.  
 
-#### annualize market equity.
-# Market equity (size) is price times shares outstanding. Price is from CRSP, shares outstanding are from Compustat (if available) or CRSP.
-ANNUAL_MV<-subset(crsp4[,c("PERMNO","year","mv","month")], month == 6)
+According to Fama and French(1992), we use a firm's market equity at the end of December of year t-1 to compute its book-to-market, etc.  
+
+```{r,echo=FALSE}
+ANNUAL_MV<-subset(crsp4[,c("PERMNO","year","mv","month")], month == 12)
+```
+
+```{r, echo=FALSE}
 ANNUAL_MV<-ANNUAL_MV[,1:3]
-#ANNUAL_MV<-aggregate(crsp4$mv,by=list(PERMNO=crsp4$PERMNO, year=crsp4$year),mean)
 colnames(ANNUAL_MV)<-c("PERMNO","year","MV")
 
 ANNUAL<-merge(ANNUAL_ILLIQ,ANNUAL_MV, by=c("PERMNO","year"),all=FALSE)
-ANNUAL[1:5,]
+kable(ANNUAL[1:5,])
+
 crsp5<-crsp4[,c("PERMNO","year","CUSIP","date","COMNAM","NAICS")]
 crsp6<-crsp5[!duplicated(crsp[,c('PERMNO','year')]),]
 crsp7<-merge(ANNUAL,crsp6 , by=c("PERMNO","year"),all=FALSE)
-crsp7[1:20,]
-## 2012 IO 18:22
+```
 
 
-IO<-read.csv("E:\\data\\fmc_exam_2020_2021\\fmc_exam_data\\IO_use_table.csv",stringsAsFactors=FALSE)
+## IO
+```{r, echo=FALSE}
+share2<-read.csv("/home/xuranzeng/fm/share2.csv")
+```
 
-# extract 4-digit code
-IO[-1,1]<-substring(IO[-1,1], 1, 4)
-IO[1,-2]<-substring(IO[1,-2], 1, 4)
+## Merge CMM and CRSP
+crsp:CUSIP(8-digit), ccm:cusip(9-digit)  
+crsp:monthly, ccm:yearly  
+So use 8-digit cusip as key to merge yearly data
 
-IO<-IO[,-2]
-colnames(IO)<-IO[1,]
-col<-as.data.frame(colnames(IO))
-
-IO[is.na(IO)]<-0
-
-# Aggregate the table to 4-digit industries.
-
-
-# Aggregate row
-# convert character to numeric
-for (i in 2:ncol(IO)){
-  IO[,i]<-as.numeric(unlist(IO[,i]))
-}
-IO[is.na(IO)]<-0
-IO2<-aggregate(IO[-1,-1],by=list(input=IO[-1,1]),sum)
-
-
-# Aggregate column (transpose and apply the same code)
-tIO2<-t(IO2)
-colnames(tIO2)<-IO2[,1]
-ctIO2<-cbind(col,tIO2)
-
-for (i in 2:ncol(ctIO2)){
-  ctIO2[,i]<-as.numeric(unlist(ctIO2[,i]))
-}
-
-ctIO2[is.na(ctIO2)]<-0
-
-
-IO3<-aggregate(ctIO2[,-1],by=list(output=(ctIO2[,1])),sum)
-IO3[1,]<-colnames(IO3)
-IO4<-t(IO3)
-colnames(IO4)<-IO4[1,]
-IO4<-IO4[-1,-1]
-cat("end up with",ncol(IO4),"unique industries")
-
-# Calculate the share of within industry inputs for each output industry.
-
-
-share<-NA
-for (i in 1:nrow(IO4)){
-  share[i]=as.numeric(IO4[i,i])/as.numeric(IO4['T005',i])
-}
-IO4<-rbind(IO4,share)
-
-## Merge crsp2 ccm2
-# crsp:CUSIP(8-digits), ccm:cusip(9-digits)
-# crsp:monthly, ccm:yearly
-
-
-
-
-ccm3<-ccm2[,c("cusip","datadate","naics","rdip","ni","dvt","lev","be","conm")]
+```{r, echo=FALSE}
+share2<-read.csv("/home/xuranzeng/fm/share2.csv")
+ccm3<-ccm2[,c("cusip","datadate","naics","xrd","ni","dvt","lev","be","conm")]
 crsp7<-crsp7[,c(-1,-6)]
-
 colnames(crsp7)[4]<-"cusip"
-crsp7[1:20,]
-
 colnames(ccm3)[2]<-"year"
 ccm3$cusip<-substring(ccm3$cusip, 1, 8)
-
-# 按年份合并
-
 ccm3$year<-substring(ccm3$year, 1, 4)
-ccm3[1:20,]
-
 ccm_crsp<-merge(ccm3, crsp7, by = c("cusip","year"), all = FALSE)
-ccm_crsp[1:5,]
 
-#A business will generally have a primary NAICS code, but it can also have multiple NAICS codes if it sells multiple products and services.
-# 以ccm为准 www.naics.com
+```
+
+(a) Construct the 4 digit NAICS code. Does it matter whether you take NAICS from CCM or CRSP? Why or why not? Add for each firm, the within industry production share from the IO table.
+
+```{r, echo=FALSE}
 same_naics<-ccm_crsp
 same_naics$same<-ccm_crsp$NAICS==ccm_crsp$naics
-same_naics[1:5,]
-ccm_crsp1<-ccm_crsp[,c('cusip','year','naics','rdip','ni','dvt','lev','be','ILLIQ','MV'),]
+kable(same_naics[1:5,],digits=4,align="c")
+```
+
+NAICS from CCM and CRSP might not be equal. This is because a business will generally have a primary NAICS code, but it can also have multiple NAICS codes if it sells multiple products and services. According to the [naics.com](www.naics.com), we take NAICS from CCM database.  
+
+(b) Calculate the book to market ratio.
+
+```{r, echo=FALSE}
+ccm_crsp1<-ccm_crsp[,c('cusip','year','naics','xrd','ni','dvt','lev','be','ILLIQ','MV'),]
 ccm_crsp1$naics<-substring(ccm_crsp1$naics, 1, 4)
-ccm_crsp1[1:5,]
 
-share2<-t(rbind(colnames(IO4)[1:length(share)],round(share,4)))
-colnames(share2)<-c("naics","share")
-ccm_crsp2<-merge(ccm_crsp1,share2,by=c("naics"),all=FALSE)
-
+ccm_crsp2<-merge(ccm_crsp1,share2[,2:3],by=c("naics"),all=FALSE)
+ccm_crsp2<-ccm_crsp2[!duplicated(ccm_crsp2[,c('cusip','year')]),]
 ccm_crsp2$bm<-ccm_crsp2$be/ccm_crsp2$MV
 
-ccm_crsp2[1:5,]
+kable(ccm_crsp2[1:5,],digits=4,align="c")
+```
+
+# Analysis
+
+## Summary Statistics
+
+```{r}
+summary(ccm_crsp2$be)
+summary(ccm_crsp2$lev)
+summary(ccm_crsp2$MV)
+summary(ccm_crsp2$bm)
+```
+
+## Plot
+For 2012 data, show graphically the distribution of R&D expenses among 2-digit NACIS industries.
+
+```{r, echo=FALSE}
+plot_data<-ccm_crsp2[,c("year","xrd","naics")]
+plot_data2<-subset(plot_data,year==2012)
+plot_data2[is.na(plot_data2)]<-0
+plot_data2$xrd<-(plot_data2$xrd)*10^(-3)
+plot_data2$naics<-substring(plot_data2$naics,1,2)
+plot_data2[1:5,]
+ggplot(plot_data2,mapping=(aes(x=naics,y=xrd,group=1)))+geom_bar(stat="identity")
+```
+
+## Panel Regression
+
