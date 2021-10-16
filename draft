@@ -25,11 +25,10 @@ library(plyr)
 library(plm)
 library(xtable)
 
-#ccm<-read.csv("E:\\data\\fmc_exam_2020_2021\\fmc_exam_data\\ccm_10_19.csv")
-ccm<-read.csv("/home/xuranzeng/fm/ccm_10_19.csv")
+ccm<-read.csv("E:\\data\\fmc_exam_2020_2021\\fmc_exam_data\\ccm_10_19.csv")
 ```
 
-(a) First, drop observations where **total assets are missing** as well as where the **foreign incorporation code is not "USA"**. How many observations are dropped in each step? Report the numbers.   
+### Missing Data
 
 ```{r,echo=FALSE}
 # at=total asset
@@ -45,7 +44,8 @@ cat(length(ccm[,1])-length(ccm1[,1]),"observations where AT is missing are dropp
 cat(length(ccm1[,1])-length(ccm2[,1]),"observations where FIC is not USA are dropped","\n")
 ```
 
-(b) Construct the **book value of equity**   
+### Book Value
+ 
 ```{r,echo=FALSE}
 ccm2$bvps<-ccm2$pstkrv
 ccm2[which(is.na(ccm2$bvps)),'bvps']<-ccm2[which(is.na(ccm2$bvps)),'pstkl']
@@ -57,18 +57,20 @@ summary(ccm2$be)
 
 BVPS represents preferred stocks. Book Equity is a firm's common equity that represents the amount available for distribution to shareholders. Thus, when derive BE, we should use shareholders' equity (SEQ) plus deferred taxs and credits (TXDITC) minus preferred stocks (BVPS).   
 
+### Leverage
 
-(c) Calculate **leverage** as the ratio of long-term debt over total assets.   
 ```{r,echo=FALSE}
 # dltt = Long-Term Debt-Total, at=Total Asset
 ccm2$lev<-ccm2$dltt/ccm2$at
 summary(ccm2$lev)
 ```
 
-(d) Keep net income and total dividends to proxy firm profitability. Keep R&D expenses as proxy for investment behavior.   
+ 
 ```{r, echo=FALSE}
 ccm3<-ccm2[,c("cusip","datadate","naics","xrd","ni","dvt","lev","be","conm")]
 kable(xtable(ccm3[100:105,]),digits=4,align="c")
+
+#write.csv(ccm3,"E:\\data\\fmc_exam_2020_2021\\fmc_exam_data\\ccm3.csv")
 ```
 
 
@@ -76,11 +78,11 @@ kable(xtable(ccm3[100:105,]),digits=4,align="c")
 
 ## CRSP
 ```{r, echo=FALSE}
-#crsp<-read.csv("E:  data  fmc_exam_2020_2021  fmc_exam_data  crsp_07_19.csv")
-crsp<-read.csv("/home/xuranzeng/fm/crsp_07_19.csv")
+crsp<-read.csv("E:\\data\\fmc_exam_2020_2021\\fmc_exam_data\\crsp_07_19.csv")
 ```
 
-(a) Investigate if there are any **permno month year duplicates**, report your findings and explain why this may happen? Drop these duplicates. How many observations are dropped? report the number   
+### Remove duplicated data
+
 ```{r, echo=FALSE}
 crsp$date2<-ymd(crsp$date)
 crsp$month<-month(crsp$date2)
@@ -89,7 +91,7 @@ crsp$year<-year(crsp$date2)
 
 ```{r, echo=FALSE}
 a<-which(duplicated(crsp[,c('PERMNO','month','year')]))
-b<-which(duplicated(crsp[,c('PERMNO','month','year')]))-1
+b<-a-1
 c<-sort(c(a,b))
 crsp_duplicate<-crsp[c,]
 ```
@@ -123,7 +125,8 @@ Generally speaking, data duplication is caused by different [DISTCD(distribution
 cat(length(crsp[,1])-length(crsp2[,1]),"observations where PERMNO-MONTH-YEAR duplicates are dropped")
 ```
 
-(b) Calculate the **market value of equity** (Note: check the summary statistics of the price first. What do you find? How to resolve this issue?)
+
+### Market Equity
 
 ```{r, echo=FALSE}
 summary(crsp2$PRC)
@@ -135,8 +138,7 @@ crsp2$mv<-crsp2$PRC * crsp2$SHROUT * 10^(-3)
 summary(crsp2$mv)
 ```
 
-
-(c) Construct a proxy variable for **market illiquidity**.  
+### Market Illiquidity
 
 ```{r,echo=FALSE}
 # return: RETX
@@ -152,7 +154,7 @@ ANNUAL_ILLIQ<-aggregate(crsp4$RV,by=list(PERMNO=crsp4$PERMNO, year=crsp4$year),m
 colnames(ANNUAL_ILLIQ)<-c("PERMNO","year","ILLIQ")
 ```
 
-(d) Annualize **market equity**.  
+### Market Equity (annualized)
 
 According to Fama and French(1992), we use a firm's market equity at the end of December of year t-1 to compute its book-to-market, etc.  
 
@@ -170,12 +172,66 @@ kable(ANNUAL[1:5,])
 crsp5<-crsp4[,c("PERMNO","year","CUSIP","date","COMNAM","NAICS")]
 crsp6<-crsp5[!duplicated(crsp[,c('PERMNO','year')]),]
 crsp7<-merge(ANNUAL,crsp6 , by=c("PERMNO","year"),all=FALSE)
+
+write.csv(crsp7,"E:\\data\\fmc_exam_2020_2021\\fmc_exam_data\\crsp7.csv")
 ```
 
 
+
 ## IO
+
+### Aggregate the table to 4-digit industries
+For output industries that have multiple input, sum up all the input industries.  
+For input industries that have multiple output, sum up all the output industries.
 ```{r, echo=FALSE}
-share2<-read.csv("/home/xuranzeng/fm/share2.csv")
+IO<-read.csv("E:\\data\\fmc_exam_2020_2021\\fmc_exam_data\\IO_use_table.csv",stringsAsFactors=FALSE)
+# extract 4-digit code
+IO[-1,1]<-substring(IO[-1,1], 1, 4)
+IO[1,-2]<-substring(IO[1,-2], 1, 4)
+IO<-IO[,-2]
+colnames(IO)<-IO[1,]
+col<-as.data.frame(colnames(IO))
+IO[is.na(IO)]<-0
+# Aggregate row
+# convert character to numeric
+for (i in 2:ncol(IO)){
+  IO[,i]<-as.numeric(unlist(IO[,i]))
+}
+IO[is.na(IO)]<-0
+IO2<-aggregate(IO[-1,-1],by=list(input=IO[-1,1]),sum)
+
+
+# Aggregate column (transpose and apply the same code)
+tIO2<-t(IO2)
+colnames(tIO2)<-IO2[,1]
+ctIO2<-cbind(col,tIO2)
+
+for (i in 2:ncol(ctIO2)){
+  ctIO2[,i]<-as.numeric(unlist(ctIO2[,i]))
+}
+
+ctIO2[is.na(ctIO2)]<-0
+
+IO3<-aggregate(ctIO2[,-1],by=list(output=(ctIO2[,1])),sum)
+IO3[1,]<-colnames(IO3)
+IO4<-t(IO3)
+colnames(IO4)<-IO4[1,]
+IO4<-IO4[-1,-1]
+kable(IO4[1:5,1:5])
+cat("end up with",ncol(IO4),"unique industries")
+```
+
+### Share of within industry inputs
+```{r, echo=FALSE}
+share<-NA
+for (i in 1:nrow(IO4)){
+  share[i]=as.numeric(IO4[i,i])/as.numeric(IO4['T005',i])
+}
+IO4<-rbind(IO4,share)
+summary(share)
+
+share2<-t(rbind(colnames(IO4)[1:length(share)],round(share,4)))
+colnames(share2)<-c("naics","share")
 ```
 
 ## Merge CMM and CRSP
@@ -184,7 +240,6 @@ crsp:monthly, ccm:yearly
 So use 8-digit cusip as key to merge yearly data
 
 ```{r, echo=FALSE}
-share2<-read.csv("/home/xuranzeng/fm/share2.csv")
 ccm3<-ccm2[,c("cusip","datadate","naics","xrd","ni","dvt","lev","be","conm")]
 crsp7<-crsp7[,c(-1,-6)]
 colnames(crsp7)[4]<-"cusip"
@@ -210,6 +265,8 @@ NAICS from CCM and CRSP might not be equal. This is because a business will gene
 ```{r, echo=FALSE}
 ccm_crsp1<-ccm_crsp[,c('cusip','year','naics','xrd','ni','dvt','lev','be','ILLIQ','MV'),]
 ccm_crsp1$naics<-substring(ccm_crsp1$naics, 1, 4)
+
+
 
 ccm_crsp2<-merge(ccm_crsp1,share2[,2:3],by=c("naics"),all=FALSE)
 ccm_crsp2<-ccm_crsp2[!duplicated(ccm_crsp2[,c('cusip','year')]),]
@@ -244,3 +301,67 @@ ggplot(plot_data2,mapping=(aes(x=naics,y=xrd,group=1)))+geom_bar(stat="identity"
 
 ## Panel Regression
 
+### Organize data as a panel
+
+```{r, echo=FALSE}
+ccm_crsp2_pd<-pdata.frame(ccm_crsp2,index=c('cusip','year'))
+kable(xtable(ccm_crsp2_pd[1:5,]),digits=4,align="c")
+pdim(ccm_crsp2_pd)
+```
+
+### Regress net income
+(a) Regress net income on 1 to 4 lags of R&D expenses while controlling for lagged net income, lagged market equity, lagged book-to-market, lagged leverage and lagged illiquidity.
+```{r}
+ni.pooled.a<-plm(ni~lag(xrd,1)+lag(xrd,2)+lag(xrd,3)+lag(xrd,4)+lag(ni,1)+lag(MV,1)+lag(bm,1)+lag(ILLIQ,1)+lag(lev,1),model='poolin',data=ccm_crsp2_pd)
+kable(tidy(ni.pooled.a),digits = 3,caption = "A")
+summary(ni.pooled.a)$r.squared
+```
+
+### Regress dividends
+(b) Regress dividends paid on 1 to 4 lags of R&D expenses while controlling for lagged dividends, lagged market equity, lagged book-to-market, lagged leverage and lagged illiquidity.
+```{r}
+ni.pooled.b<-plm(dvt~lag(xrd,1)+lag(xrd,2)+lag(xrd,3)+lag(xrd,4)+lag(dvt,1)+lag(MV,1)+lag(bm,1)+lag(ILLIQ,1)+lag(lev,1),model='poolin',data=ccm_crsp2_pd)
+kable(tidy(ni.pooled.b),digits = 3,caption = "B")
+summary(ni.pooled.b)$r.squared
+```
+
+### Control for the within industry share
+```{r}
+ni.pooled.ca<-plm(ni~lag(xrd,1)+lag(xrd,2)+lag(xrd,3)+lag(xrd,4)+lag(ni,1)+lag(MV,1)+lag(bm,1)+lag(ILLIQ,1)+lag(lev,1)+lag(share,1),model='poolin',data=ccm_crsp2_pd)
+kable(tidy(ni.pooled.ca),digits = 3,caption = "CA")
+summary(ni.pooled.ca)$r.squared
+```
+
+```{r}
+ni.pooled.cb<-plm(dvt~lag(xrd,1)+lag(xrd,2)+lag(xrd,3)+lag(xrd,4)+lag(dvt,1)+lag(MV,1)+lag(bm,1)+lag(ILLIQ,1)+lag(lev,1)+lag(share,1),model='poolin',data=ccm_crsp2_pd)
+kable(tidy(ni.pooled.cb),digits = 3,caption = "B")
+summary(ni.pooled.cb)$r.squared
+```
+
+### Industry fixed effects
+```{r, echo=FALSE}
+# aggregate industry
+ccm_crsp3<-aggregate(ccm_crsp2[,4:12],by=list(industry=ccm_crsp2$naics,year=ccm_crsp2$year),mean)
+ccm_crsp3_pd<-pdata.frame(ccm_crsp3,index=c('industry','year'))
+```
+
+```{r}
+ni.pooled.da<-plm(ni~lag(xrd,1)+lag(xrd,2)+lag(xrd,3)+lag(xrd,4)+lag(ni,1)+lag(MV,1)+lag(bm,1)+lag(ILLIQ,1)+lag(lev,1),model='within',data=ccm_crsp3_pd,effect = "individual")
+kable(tidy(ni.pooled.da),digits = 3,caption = "DA_within")
+summary(ni.pooled.da)$r.squared
+```
+
+```{r}
+ni.pooled.db<-plm(dvt~lag(xrd,1)+lag(xrd,2)+lag(xrd,3)+lag(xrd,4)+lag(dvt,1)+lag(MV,1)+lag(bm,1)+lag(ILLIQ,1)+lag(lev,1),model='within',data=ccm_crsp3_pd,effect = "individual")
+kable(tidy(ni.pooled.db),digits = 3,caption = "DB_within")
+summary(ni.pooled.db)$r.squared
+```
+
+### Newey west errors with 6 lags
+```{r}
+coeftest(ni.pooled.a, vcov. = vcovNW)
+```
+
+```{r}
+coeftest(ni.pooled.b, vcov. = vcovNW)
+```
