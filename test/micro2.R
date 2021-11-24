@@ -1,0 +1,105 @@
+library(lubridate)
+library(ggplot2)
+library(tidyr)
+library(knitr)
+library(plyr)
+library(reshape2)
+library(Rcpp)
+library(jtools)
+options("scipen"=100, "digits"=4)
+
+data<-read.csv("E:\\data\\Noto_data_task.csv")
+
+# Reproduce Figure 4
+data1<-data
+data1$t<-data1$year-1962
+data1$t2<-(data1$year-1962)^2
+data1$t92<-data1$year-1992
+data1[which(data1$t92<0),'t92']<-0
+
+# Compute detrended wage gap
+reg1<-lm(clphsg_all~t,data1)
+summ(reg1)
+gapdt<-residuals(reg1)
+
+# Compute detrended relative supply
+reg2<-lm(eu_lnclg~t,data1)
+summ(reg2)
+supdt<-residuals(reg2)
+
+# Plot figure 4.a
+plot1<-as.data.frame(data1$year)
+plot1$gapdt<-gapdt
+plot1$supdt<-supdt
+colnames(plot1)<-c("year","Detrended_Wage_Differential","Detrended_Relative_Supply")
+plot1 <- melt(plot1,id="year")
+
+ggplot(data = plot1, mapping = aes(x = year, y = value, colour = variable)) + 
+  geom_line(size=1)+
+  geom_point()+
+  scale_color_manual(values = c("#0072BD", "#D95319"))+ 
+  theme_bw()+ 
+  theme(legend.position = "bottom") + 
+  labs(x = "year", y = "log points")
+
+# Compute regression and prediction
+data1988<-subset(data1,year<1988)
+reg3<-lm(clphsg_all~t+eu_lnclg,data1988)
+summ(reg3)
+gap6387 <-predict(reg3,data1)
+
+
+plot2<-data1[,c("year","clphsg_all")]
+plot2$gap6387<-gap6387
+colnames(plot2)<-c("year","Observed CLG/HS Gap","Katz-Murphy Predicted Wage Gap: 1963-1987 Trend")
+plot2 <- melt(plot2,id="year")
+
+ggplot(data = plot2, mapping = aes(x = year, y = value, colour = variable)) + 
+  geom_line(size=1)+
+  geom_point()+
+  geom_vline(xintercept = c(1987,1992))+
+  scale_color_manual(values = c("#0072BD", "#D95319"))+ 
+  theme_bw()+ 
+  theme(legend.position = "bottom") + 
+  labs(x = "year", y = "log wage gap")
+
+# Reproduce table 2
+## Data construction
+table2<-data
+table2$t<-data$year-1962
+table2$tsq<-(table2$t)^2/100
+table2$tcu<-(table2$t)^3/1000
+table2$t92<-table2$year-1992
+table2[which(table2$t92<0),'t92']<-0
+
+## Regressions
+reg21<-lm(clphsg_all~t+eu_lnclg,subset(table2,year<=1987))
+
+reg22<-lm(clphsg_all~t+eu_lnclg,table2)
+
+reg23<-lm(clphsg_all~t+t92+eu_lnclg,table2)
+
+reg24<-lm(clphsg_all~t+tsq+eu_lnclg,table2)
+
+reg25<-lm(clphsg_all~t+tcu+tsq+eu_lnclg,table2)
+
+export_summs(reg21,reg22,reg23,reg24,reg25)
+
+# Find trend break year
+data3<-data1
+r<-NA
+for (i in 1963:2008){
+  data3$tb<-data3$year-i
+  data3[which(data3$tb<0),'tb']<-0
+  reg23<-lm(clphsg_all~t+tb+eu_lnclg,data3)
+  r[(i-1962)]<-summary(reg23)$r.squared
+}
+
+plotrsq<-as.data.frame(cbind(data3$year,r))
+colnames(plotrsq)<-c("year","rsq")
+ggplot(data = plotrsq, mapping = aes(x = year, y = rsq)) + 
+  geom_line(size=1)+
+  geom_point()+
+  theme_bw()
+
+which.max(r)+1962

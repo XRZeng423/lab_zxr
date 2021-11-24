@@ -1,0 +1,118 @@
+---
+title: "Consumer Finances Analysis Task"
+author: "9318"
+date: "11/2/2021"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=5, fig.pash='Figs/', echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(lubridate)
+library(ggplot2)
+library(tidyr)
+library(knitr)
+library(plyr)
+library(spatstat)
+library(dplyr) 
+
+data<-read.csv("E:\\data\\micro\\RA_21_22.csv")
+data$total_wealth<-data$asset_total-data$debt_total
+data$housing_wealth<-data$asset_housing-data$debt_housing
+```
+
+```{r}
+race_total_wealth<-data %>% 
+  group_by(race,year) %>% 
+  summarise(weighted.median(total_wealth, weight, na.rm = TRUE))
+
+colnames(race_total_wealth)[3]<-"total_wealth"
+ggplot(data = race_total_wealth, mapping = aes(x = year, y = total_wealth, colour = race)) + 
+  geom_line(size=1)+
+  scale_color_manual(values = c("#0072BD", "#D95319", "#EDB120",'darkred'))+ 
+  theme_bw()+ 
+  theme(legend.position = "bottom") 
+```
+
+```{r}
+education_total_wealth<-data %>% 
+  group_by(education,year) %>% 
+  summarise(weighted.median(total_wealth, weight, na.rm = TRUE))
+colnames(education_total_wealth)[3]<-"total_wealth"
+ggplot(data = education_total_wealth, mapping = aes(x = year, y = total_wealth, colour = education)) + 
+  geom_line(size=1)+
+  scale_color_manual(values = c("#0072BD", "#D95319", "#EDB120",'darkred'))+ 
+  theme_bw()+ 
+  theme(legend.position = "bottom") 
+```
+
+```{r}
+data2<-subset(data,race=='black'|race=='white')
+race_housing_wealth<-data2 %>% 
+  group_by(race,year) %>% 
+  summarise(weighted.median(housing_wealth, weight, na.rm = TRUE))
+colnames(race_housing_wealth)[3]<-"housing_wealth"
+ggplot(data = race_housing_wealth, mapping = aes(x = year, y = housing_wealth, colour = race)) +
+  geom_line(size=1)+
+  scale_color_manual(values = c("#0072BD", "#D95319", "#EDB120",'darkred'))+ 
+  theme_bw()+ 
+  theme(legend.position = "bottom")
+```
+
+```{r}
+data3<-subset(data2,age>=25)
+race_housing_wealth2<-data3 %>% 
+  group_by(race,year) %>% 
+  summarise(weighted.median(housing_wealth, weight, na.rm = TRUE))
+colnames(race_housing_wealth2)[3]<-"housing_wealth"
+ggplot(data = race_housing_wealth2, mapping = aes(x = year, y = housing_wealth, colour = race)) + 
+  geom_line(size=1)+
+  scale_color_manual(values = c("#0072BD", "#D95319", "#EDB120",'darkred'))+ 
+  theme_bw()+ 
+  theme(legend.position = "bottom") 
+```
+
+```{r}
+race_income<-data3 %>% 
+  group_by(race,year) %>% 
+  summarise(weighted.median(income, weight, na.rm = TRUE))
+colnames(race_income)[3]<-"income"
+ggplot(data = race_income, mapping = aes(x = year, y = income, colour = race)) + 
+  geom_line(size=1)+
+  scale_color_manual(values = c("#0072BD", "#D95319", "#EDB120",'darkred'))+ 
+  theme_bw()+ 
+  theme(legend.position = "bottom") 
+```
+
+```{r}
+data3$non_housing_wealth<-data3$total_wealth-data3$housing_wealth
+race_non_housing_wealth<-data3 %>% 
+  group_by(race,year) %>% 
+  summarise(weighted.median(non_housing_wealth, weight, na.rm = TRUE))
+colnames(race_non_housing_wealth)[3]<-"non_housing_wealth"
+ggplot(data = race_non_housing_wealth, mapping = aes(x = year, y = non_housing_wealth, colour = race)) + 
+  geom_line(size=1)+
+  scale_color_manual(values = c("#0072BD", "#D95319", "#EDB120",'darkred'))+ 
+  theme_bw()+ 
+  theme(legend.position = "bottom") 
+```
+
+```{r}
+race_housing_wealth4<-data3 %>% 
+  group_by(education,race,year) %>% 
+  summarise(weighted.median(housing_wealth, weight, na.rm = TRUE))
+colnames(race_housing_wealth4)[4]<-"housing_wealth"
+merge<-NA
+for (i in 1:nrow(race_housing_wealth4)){
+  merge[i]<-paste(race_housing_wealth4[i,1],race_housing_wealth4[i,2])
+}
+race_housing_wealth4$type<-merge
+race_housing_wealth5<-race_housing_wealth4[,c(3,4,5)]
+ggplot(data = race_housing_wealth5, mapping = aes(x = year, y = housing_wealth, colour = type)) + 
+  geom_line(size=1)+
+  scale_color_manual(values = c("#0072BD", "#D95319", "#EDB120",'darkred','grey','blue'))+ 
+  theme_bw()+ 
+  theme(legend.position = "bottom") 
+```
